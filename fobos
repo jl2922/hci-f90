@@ -1,0 +1,3 @@
+[default]
+fc = gfortran
+modsw = -J
