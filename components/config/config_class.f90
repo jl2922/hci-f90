@@ -8,30 +8,27 @@ module config_class
 
   public :: config
 
-  integer, parameter :: SYSTEM_LENGTH = 80
+  integer, parameter :: SYSTEM_NAME_LENGTH = 80
+  integer, parameter :: CONFIG_FILE_UNIT = 100
 
   type heg_config
     private
-    real(DOUBLE), public :: r_cutoff
-    real(DOUBLE), public :: r_s
     integer, public :: n_elec
     integer, public :: n_up
     integer, public :: n_dn
+    real(DOUBLE), public :: r_cutoff
+    real(DOUBLE), public :: r_s
   end type heg_config
   
   type config
     private
-    ! Will either be the default value or the value from config file.
-    character(len=SYSTEM_LENGTH), public :: system
+    character(len=SYSTEM_NAME_LENGTH), public :: system
     real(DOUBLE), public :: eps_var
     real(DOUBLE), public :: eps_pt
     real(DOUBLE), public :: tol
     logical, public :: dump_var_wf
-
-    ! If not provided, choose according resources available.
     type(optional_double), public :: eps_pt_det
     type(optional_int), public :: n_samples
-
     type(heg_config), public :: heg
     contains
       procedure, public :: read_configs
@@ -43,7 +40,7 @@ module config_class
     subroutine read_configs(this)
       class(config), intent(inout) :: this
 
-      character(len=SYSTEM_LENGTH) :: system
+      character(len=SYSTEM_NAME_LENGTH) :: system
 
       ! Default values.
       real(DOUBLE) :: eps_var = 1.0e-3_DOUBLE
@@ -53,16 +50,17 @@ module config_class
 
       ! Initialized to -1 for checking availablity in namelist.
       real(DOUBLE) :: eps_pt_det = -1 ! eps for the deterministic part of PT.
-      real(DOUBLE) :: n_samples = -1 ! Samples in stochastic PT. Real to allow exponential format.
+      real(DOUBLE) :: n_samples = -1 ! For stochastic PT. Real to allow exponential format.
 
-      integer :: io_state
-      integer, parameter :: config_file_unit = 100
+      integer :: io_err
 
       namelist /hci/ system, eps_var, eps_pt, eps_pt_det, tol, dump_var_wf, n_samples
 
-      call create_config_file(config_file_unit)
+      call create_config_file(CONFIG_FILE_UNIT)
+
       rewind(config_file_unit)
-      read(unit=config_file_unit, nml=hci, iostat=io_state)
+      read(unit=CONFIG_FILE_UNIT, nml=hci, iostat=io_err)
+      if (io_err > 0) stop 'Cannot read HCI configs.'
 
       this%system = system
       this%eps_var = eps_var
@@ -73,11 +71,15 @@ module config_class
       if (eps_pt_det > 0) then
         this%eps_pt_det%instance = eps_pt_det
         this%eps_pt_det%is_present = .true.
+      else
+        this%eps_pt_det%is_present = .false.
       end if
 
       if (n_samples > 0) then
         this%n_samples%instance = nint(n_samples)
         this%n_samples%is_present = .true.
+      else
+        this%n_samples%is_present = .false.
       end if
 
       write (6, '(A)') '[CONFIGURATIONS]'
@@ -100,7 +102,7 @@ module config_class
 
       select case (system)
         case ('heg')
-          call read_heg_configs(this, config_file_unit)
+          call this%read_heg_configs()
         case default
           stop 'Unrecognized system.'
       end select
@@ -109,9 +111,8 @@ module config_class
 
     end subroutine read_configs
 
-    subroutine read_heg_configs(this, config_file_unit)
+    subroutine read_heg_configs(this)
       class(config), intent(inout) :: this
-      integer, intent(in) :: config_file_unit
 
       real(DOUBLE) :: r_cutoff = -1
       real(DOUBLE) :: r_s = -1
@@ -120,10 +121,11 @@ module config_class
       integer :: n_elec
       namelist /heg/ r_cutoff, r_s, n_up, n_dn
 
-      integer :: io_state
+      integer :: io_err
 
-      rewind(config_file_unit)
-      read(unit=config_file_unit, nml=heg, iostat=io_state)
+      rewind(CONFIG_FILE_UNIT)
+      read(unit=CONFIG_FILE_UNIT, nml=heg, iostat=io_err)
+      if (io_err > 0) stop 'Cannot read HEG configs.'
 
       if (r_cutoff < 0 .or. r_s < 0 .or. n_up < 0 .or. n_dn < 0) then
         stop 'r_cutoff, r_s, n_up, n_dn must be provided for heg system.'
@@ -150,19 +152,19 @@ module config_class
       integer, intent(in) :: config_file_unit
       integer, parameter :: MAX_LINE_LENGTH = 256
       character(MAX_LINE_LENGTH) :: line
-      integer :: io_state
+      integer :: io_err
 
       open(unit=config_file_unit, status='scratch', recl=MAX_LINE_LENGTH, delim='APOSTROPHE')
 
       do
-        read(5, '(A)', iostat = io_state) line
-        if (io_state < 0) then
+        read(5, '(A)', iostat = io_err) line
+        if (io_err < 0) then
           ! End of file reached.
           return
-        else if (io_state == 0) then
+        else if (io_err == 0) then
           write(config_file_unit, '(A)') line
         else 
-          stop 'Read error.'
+          stop 'Cannot read config file.'
         end if
       end do
     end subroutine create_config_file

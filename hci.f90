@@ -1,7 +1,7 @@
 program hci
 
-  use config_class, only : config
-  use solver_controller_class, only : solver_controller
+  use config_class
+  use solver_controller_class
 
   implicit none
   
