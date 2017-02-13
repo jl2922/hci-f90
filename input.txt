@@ -1,13 +1,15 @@
+&system
+name='heg'
+/
+
 &hci
-tol=0.002
-system='heg'
-n_samples=200
-eps_var=0.1
+eps_var = 1.0e-3
+eps_pt = 1.0e-6
+n_up = 7
+n_dn = 7
 /
 
 &heg
-r_cutoff=1.49
+r_cutoff=1.50
 r_s=0.5
-n_up=7
-n_dn=7
 /
