@@ -1,8 +1,10 @@
 module solver_module
 
+  use constants_module
   use det_module
   use dets_module
   use types_module
+  use utilities_module
 
   implicit none
 
@@ -157,13 +159,13 @@ module solver_module
       write (6, '(A, I0)') 'Iteration #', iter
       call this%get_next_dets()
       n_dets_cur = this%dets%n
-      if (n_dets_cur < 1.01 * n_dets_prev) then
-        this%dets%n = n_dets_prev
-        write (6, '(A)') 'Number of dets change within 1%. Variation finished.'
-        exit
-      end if
+      ! if (n_dets_cur < 1.01 * n_dets_prev) then
+      !   this%dets%n = n_dets_prev
+      !   write (6, '(A)') 'Number of dets change within 1%. Variation finished.'
+      !   exit
+      ! end if
       n_dets_prev = n_dets_cur
-      energy_cur = this%diagonalize()
+      call this%diagonalize(energy_cur)
 
       write (6, '(A, F0.10)') 'Energy: ', energy_cur
       write (6, '(A, G0.10)') 'Number of dets: ', this%dets%n
@@ -214,6 +216,11 @@ module solver_module
       call new_dets%merge_sorted_dets(connected_dets)
     end do
     call this%dets%merge_sorted_dets(new_dets)
+    do i = 1, this%dets%n
+      tmp_det = this%dets%get_det(i)
+      print *, 'det #', i
+      call tmp_det%print_det()
+    end do
   end subroutine get_next_dets
 
   subroutine find_connected_dets(this, det, connected_dets, eps_min)
@@ -225,9 +232,25 @@ module solver_module
     stop 'Default find_connected_dets has not been overloaded.'
   end subroutine find_connected_dets
 
-  function diagonalize(this) result(lowest_eigenvalue)
+  subroutine diagonalize(this, lowest_eigenvalue)
+    ! Only for the case where dets are represented by integers in binary format.
     class(solver_type), intent(inout) :: this
-    real(DOUBLE) :: lowest_eigenvalue
+    real(DOUBLE), intent(out) :: lowest_eigenvalue
+    integer :: n
+    integer :: n_up
+    integer :: det_size
+    integer, allocatable :: n_nonzero_elems(:)
+    type(linked_list_int_type) :: H_indices
+    type(linked_list_double_type) :: H_values
+
+    n = this%dets%n
+    n_up = this%n_up
+    det_size = this%dets%det_size
+
+    if (n == 1) then
+      lowest_eigenvalue = this%HF_energy
+      return
+    end if
     
     call generate_sparse_hamiltonian()
     call davidson_sparse()
@@ -237,13 +260,171 @@ module solver_module
     contains
 
     subroutine generate_sparse_hamiltonian()
-      ! Only for the case where dets are represented by integers in binary format.  
-       
+      integer(LONG), allocatable :: spin_det(:)
+      integer :: cnt
+      integer :: i, j
+      integer, allocatable :: elec_orbitals(:)
+      integer, allocatable :: alpha_m1_idx(:)
+      integer, allocatable :: beta_idx(:)
+      integer, allocatable :: tmp_H_indices(:)
+      integer(LONG), allocatable :: alpha_m1(:, :)
+      integer(LONG), allocatable :: beta(:, :)
+      real(DOUBLE), allocatable :: tmp_H_values(:)
+      type(det_type) :: tmp_det
+      
+      ! Setup alpha_m1 and beta strings.
+      allocate(spin_det(det_size))
+      allocate(beta(det_size, n))
+      allocate(beta_idx(n))
+      beta(:, :) = this%dets%dn(:, :)
+      do i = 1, n
+        beta_idx(i) = i
+      end do
+      call sort_by_first_arg(n, beta, beta_idx)
+      do i = 1, n
+        write (6, '(B0.64, A, I0)') beta(1, i), ': ', beta_idx(i)
+      end do
+      allocate(alpha_m1(det_size, n * n_up))
+      allocate(alpha_m1_idx(n * n_up))
+      allocate(elec_orbitals(n_up))
+      do i = 1, n
+        tmp_det = this%dets%get_det(i)
+        call tmp_det%get_elec_orbitals(C%UP_SPIN, elec_orbitals, n_up)
+        do j = 1, n_up
+          spin_det(:) = this%dets%up(:, i) 
+          call util%ab_set(spin_det, elec_orbitals(j), .false.)
+          alpha_m1(:, n_up * (i - 1) + j) = spin_det(:)
+        end do
+      end do
+      do i = 1, n
+        alpha_m1_idx(n_up * (i - 1) + 1: n_up * i) = i
+      end do
+      call sort_by_first_arg(n, alpha_m1, alpha_m1_idx)
+      do i = 1, n
+        write (6, '(B0.64, A, I0)') alpha_m1(1, i), ': ', alpha_m1_idx(i)
+      end do
+      
+      ! Generate H with the helper strings.
+      do i = 1, n
+        ! Diagonal elem.
+        det_cur = this%get_det(i)
+        cnt = 1
+        tmp_H_indices(cnt) = i
+        tmp_H_values(cnt) = this%get_hamiltonian_elem(det_cur, det_cur)
+
+        call util%binary_search(det_cur%dn, beta, k)
+        ptr = k
+        do while (util%ab_eq(det_cur%dn, beta(ptr)) .and. ptr > 0)
+          j = beta_idx(ptr)
+          if (j /= i) then
+            H = this%get_hamiltonian_elem(det_cur, this%dets%get_det(j))
+            if (abs(H) > C%EPS) then
+              cnt = cnt + 1
+              tmp_H_indices(cnt) = j
+              tmp_H_values(cnt) = H
+            end if
+          end if
+          ptr = ptr - 1
+        end do
+        ptr = k
+        do while (util%ab_eq(det_cur%dn, beta(ptr)) .and. ptr <= n)
+          j = beta_idx(ptr)
+          if (j /= i) then
+            H = this%get_hamiltonian_elem(det_cur, this%dets%get_det(j))
+            if (abs(H) > C%EPS) then
+              cnt = cnt + 1
+              tmp_H_indices(cnt) = j
+              tmp_H_values(cnt) = H
+            end if
+          end if
+          ptr = ptr + 1
+        end do
+        
+        call det_cur%get_elec_orbitals(C%UP_SPIN, occ_up)
+        do ii = 1, n_up
+          spin_det(:) = this%dets%up(:, i) 
+          call util%ab_set(spin_det, elec_orbitals(j), .false.)
+          call util%binary_search(spin_det, alpha_m1, k)
+          do while (util%ab_eq(spin_det, beta(ptr)) .and. ptr > 0)
+            j = alpha_m1_idx(ptr)
+            if (j /= i) then
+              H = this%get_hamiltonian_elem(det_cur, this%dets%get_det(j))
+              if (abs(H) > C%EPS) then
+                cnt = cnt + 1
+                tmp_H_indices(cnt) = j
+                tmp_H_values(cnt) = H
+              end if
+            end if
+            ptr = ptr - 1
+          end do
+          ptr = k
+          do while (util%ab_eq(spin_det, beta(ptr)) .and. ptr <= n)
+            j = alpha_m1_idx(ptr)
+            if (j /= i) then
+              H = this%get_hamiltonian_elem(det_cur, this%dets%get_det(j))
+              if (abs(H) > C%EPS) then
+                cnt = cnt + 1
+                tmp_H_indices(cnt) = j
+                tmp_H_values(cnt) = H
+              end if
+            end if
+            ptr = ptr + 1
+          end do
+        end do
+
+        ! Add to H.
+        call util%arg_sort(tmp_H_indices, order, cnt)
+        distinct_cnt = 0
+        do i = 1, cnt
+          if (i > 1 .and. tmp_H_indices(order(i)) == tmp_H_indices(order(i - 1))) then
+            cycle
+          end if
+          H_indices%append(tmp_H_indices(order(i)))
+          H_values%append(tmp_H_values(order(i)))
+          distinct_cnt = distinct_cnt + 1
+        end do
+        n_nonzero_elems(i) = distinct_cnt
+      end do
+      
     end subroutine generate_sparse_hamiltonian
+
+    subroutine sort_by_first_arg(n, arr, idx)
+      integer, intent(in) :: n
+      integer(LONG), allocatable, intent(inout) :: arr(:, :)
+      integer, allocatable, intent(inout) :: idx(:)
+      integer :: gap
+      integer(LONG), allocatable :: tmp_elem(:)
+      integer :: tmp_idx
+      integer :: i, j
+
+      allocate(tmp_elem(det_size))
+      gap = size(arr) / 2
+      do while (gap > 0)
+        do i = gap+1, size(arr)
+          j = i
+          tmp_elem(:) = arr(:, i)
+          tmp_idx = idx(i)
+          do while (j >= gap+1)
+            if (.not. util%ab_gt(arr(:, j - gap), tmp_elem)) exit
+            arr(:, j) = arr(:, j-gap)
+            idx(j) = idx(j-gap)
+            j = j - gap
+          end do
+          arr(:, j) = tmp_elem(:)
+          idx(j) = tmp_idx
+        end do
+        if (gap == 2) then
+          gap = 1
+        else
+          gap = gap * 5 / 11
+        end if
+      end do
+    end subroutine sort_by_first_arg
 
     subroutine davidson_sparse()
     end subroutine davidson_sparse
-  end function diagonalize
+
+  end subroutine diagonalize
 
   subroutine pt(this)
     class(solver_type), intent(inout) :: this

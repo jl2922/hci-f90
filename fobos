@@ -2,3 +2,4 @@
 cflags   = -c -cpp -O0 -C -g
 fc = gfortran
 modsw = -J
+exclude = utilities_module.fpp
