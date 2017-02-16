@@ -15,6 +15,7 @@ module constants_module
     real(DOUBLE) :: PI = 3.141592653589793238468_DOUBLE
     integer :: UP_SPIN = 1
     integer :: DOWN_SPIN = 0
+    integer :: TRUNK_SIZE = 63 ! Standard fortran doesn't support unsigned.
   end type constants_type
   type(constants_type) :: C
 

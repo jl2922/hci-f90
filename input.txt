@@ -10,6 +10,6 @@ n_dn = 7
 /
 
 &heg
-r_cutoff=1.50
+r_cutoff=2.50
 r_s=0.5
 /

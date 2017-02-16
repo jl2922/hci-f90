@@ -14,8 +14,10 @@ module dets_module
   type dets_type
     private
     integer, public :: n = 0 ! n <= 2nd rank of up/dn.
+    integer :: det_size = 0
+    integer(LONG), allocatable :: up(:, :)
+    integer(LONG), allocatable :: dn(:, :)
     logical, public :: is_sorted = .true. ! True if sorted in increasing order.
-    type(det_type), allocatable, public :: dets(:)
     contains
       procedure, public :: reserve
       procedure, public :: append
@@ -23,6 +25,7 @@ module dets_module
       procedure, public :: get_det
       procedure, public :: set_det
       procedure, public :: sort ! Into ascending order.
+      procedure, public :: filter_by_sorted_dets
       procedure, public :: merge_sorted_dets
   end type dets_type
 
@@ -35,19 +38,17 @@ module dets_module
   subroutine reserve(this, capacity)
     class(dets_type), intent(inout) :: this
     integer, intent(in) :: capacity
-    if (allocated(this%dets) .and. size(this%dets) /= capacity) then
-      deallocate(this%dets)
-    end if
-    if (.not. allocated(this%dets)) then
-      allocate(this%dets(capacity))
-    end if
+    if (allocated(this%up)) deallocate(this%up)
+    if (allocated(this%dn)) deallocate(this%dn)
+    allocate(this%up(this%det_size, capacity))
+    allocate(this%dn(this%det_size, capacity))
   end subroutine reserve
 
   subroutine append(this, det)
     class(dets_type), intent(inout) :: this
     class(det_type), intent(in) :: det
 
-    if (size(this%dets) == this%n) then
+    if (size(this%up, 2) == this%n) then
       stop 'Not enough capacity.'
     endif
     this%n = this%n + 1
@@ -58,8 +59,11 @@ module dets_module
     class(dets_type), intent(inout) :: this
     integer, intent(in) :: n_orb
     integer, intent(in) :: capacity
+    this%det_size = ceiling(n_orb * 1.0 / C%TRUNK_SIZE)
     call this%reserve(capacity)
     this%n = 0
+    this%up = 0
+    this%dn = 0
   end subroutine initialize
 
   function get_det(this, idx) result(det)
@@ -68,10 +72,13 @@ module dets_module
     type(det_type) :: det
     
     if (idx > this%n) then
+      print *, 'idx/n: ', idx, this%n
       call backtrace
-      stop 'get_det with idx out of bound.'
+      stop 'get_idx out of bound.'
     end if
-    det = this%dets(idx)
+    call det%resize(this%det_size)
+    det%up%trunks(:) = this%up(:, idx)
+    det%dn%trunks(:) = this%dn(:, idx)
   end function get_det
 
   subroutine set_det(this, idx, det)
@@ -79,8 +86,9 @@ module dets_module
     integer, intent(in) :: idx
     type(det_type), intent(in) :: det
 
-    if (idx > this%n) stop 'set_det with idx out of bound.'
-    this%dets(idx) = det
+    if (idx > this%n) stop 'set_idx out of bound.'
+    this%up(:, idx) = det%up%trunks(:)
+    this%dn(:, idx) = det%dn%trunks(:)
     if (this%n > 1) then
       this%is_sorted = .false.
     end if
@@ -90,9 +98,10 @@ module dets_module
     class(dets_type), intent(inout) :: this
     integer :: i
     integer :: n
+    integer(LONG), allocatable :: sorted_up(:, :)
+    integer(LONG), allocatable :: sorted_dn(:, :)
     integer, allocatable :: order(:)
     integer, allocatable :: tmp_order(:)
-    type(det_type), allocatable :: sorted_dets(:)
 
     n = this%n
     if (n == 0) return
@@ -104,12 +113,16 @@ module dets_module
 
     call recur(1, n)
 
-    allocate(sorted_dets(n))
+    allocate(sorted_up(this%det_size, n))
+    allocate(sorted_dn(this%det_size, n))
     do i = 1, n
-      sorted_dets(i) = this%dets(order(i))
+      sorted_up(:, i) = this%up(:, order(i))
+      sorted_dn(:, i) = this%dn(:, order(i))
     enddo
-    deallocate(this%dets)
-    call move_alloc(sorted_dets, this%dets)
+    deallocate(this%up)
+    deallocate(this%dn)
+    call move_alloc(sorted_up, this%up)
+    call move_alloc(sorted_dn, this%dn)
     this%is_sorted = .true.
 
     contains
@@ -123,7 +136,7 @@ module dets_module
 
       if (left == right) return
       if (left == right - 1) then
-        if (this%dets(right) < this%dets(left)) then
+        if (this%get_det(right) < this%get_det(left)) then
           tmp = order(left)
           order(left) = order(right)
           order(right) = tmp
@@ -140,7 +153,7 @@ module dets_module
       ptr2 = mid + 1
       pos = left
       do while (pos < right .and. ptr1 <= mid .and. ptr2 <= right)
-        if (this%dets(tmp_order(ptr1)) < this%dets(order(ptr2))) then
+        if (this%get_det(tmp_order(ptr1)) < this%get_det(order(ptr2))) then
           order(pos) = tmp_order(ptr1)
           ptr1 = ptr1 + 1
         else
@@ -156,12 +169,58 @@ module dets_module
 
   end subroutine sort
 
-  subroutine merge_sorted_dets(this, dets, indices_old)
+  subroutine filter_by_sorted_dets(this, dets)
+    ! Filter out the dets in this sorted array if they exist in the sorted dets passed in.
+    ! Assuming no duplication.
+    class(dets_type), intent(inout) :: this
+    type(dets_type), intent(inout) :: dets
+    integer :: n_left_dets
+    integer :: dets_idx
+    integer :: i
+    integer :: n
+    integer, allocatable :: left_dets_indices(:)
+    integer(LONG), allocatable :: new_up(:, :), new_dn(:, :)
+
+    if (.not. dets%is_sorted) stop 'dets are not sorted.'
+    if (.not. this%is_sorted) stop 'target dets are not sorted.'
+    
+    n = this%n
+    if (n == 0) return
+    if (dets%n == 0) return
+    allocate(left_dets_indices(n))
+    n_left_dets = 0
+    dets_idx = 1
+    do i = 1, n
+      if (dets_idx > dets%n) exit
+      do while (dets%get_det(dets_idx) < this%get_det(i) .and. dets_idx < dets%n)
+        dets_idx = dets_idx + 1
+      enddo
+      if (dets%get_det(dets_idx) == this%get_det(i)) then
+        dets_idx = dets_idx + 1
+        cycle
+      endif
+      n_left_dets = n_left_dets + 1
+      left_dets_indices(n_left_dets) = i
+    enddo
+
+    allocate(new_up(this%det_size, n_left_dets))
+    allocate(new_dn(this%det_size, n_left_dets))
+    do i = 1, n_left_dets
+      new_up(:, i) = this%up(:, left_dets_indices(i))
+      new_dn(:, i) = this%dn(:, left_dets_indices(i))
+    enddo
+    deallocate(this%up)
+    deallocate(this%dn)
+    call move_alloc(new_up, this%up)
+    call move_alloc(new_dn, this%dn)
+    this%n = n_left_dets
+  end subroutine filter_by_sorted_dets
+
+  subroutine merge_sorted_dets(this, dets)
     ! Merge two sorted dets array into one sorted dets array.
     ! Assuming no duplication.
     class(dets_type), intent(inout) :: this
     type(dets_type), intent(inout) :: dets
-    integer, allocatable, optional, intent(out) :: indices_old(:)
     integer :: n
     integer :: dets_idx
     integer :: n_merged_dets
@@ -169,18 +228,14 @@ module dets_module
     integer :: idx
     integer, allocatable :: merged_dets_indices(:)
     integer :: ptr_this, ptr_dets
-    type(det_type), allocatable :: new_dets(:)
+    integer(LONG), allocatable :: new_up(:, :), new_dn(:, :)
 
     if (.not. dets%is_sorted) stop 'dets are not sorted.'
     if (.not. this%is_sorted) stop 'target dets are not sorted.'
 
     n = this%n
     if (dets%n == 0) return
-    if (n == 0) then
-      this = dets
-      return
-    endif
-    if (present(indices_old)) allocate(indices_old(n))
+    if (n == 0) this%det_size = dets%det_size
     allocate(merged_dets_indices(n + dets%n)) ! Indices > n for input dets.
     n_merged_dets = 0
     ptr_this = 1
@@ -188,13 +243,11 @@ module dets_module
   
     do while (ptr_this <= n .and. ptr_dets <= dets%n)
       n_merged_dets = n_merged_dets + 1
-      if (this%dets(ptr_this) < dets%dets(ptr_dets)) then
+      if (this%get_det(ptr_this) < dets%get_det(ptr_dets)) then
         merged_dets_indices(n_merged_dets) = ptr_this
-        if (present(indices_old)) indices_old(ptr_this) = n_merged_dets
         ptr_this = ptr_this + 1
-      else if (this%dets(ptr_this) == dets%dets(ptr_dets)) then
+      else if (this%get_det(ptr_this) == dets%get_det(ptr_dets)) then
         merged_dets_indices(n_merged_dets) = ptr_this
-        if (present(indices_old)) indices_old(ptr_this) = n_merged_dets
         ptr_this = ptr_this + 1
         ptr_dets = ptr_dets + 1
       else
@@ -205,7 +258,6 @@ module dets_module
     do while (ptr_this <= n)
       n_merged_dets = n_merged_dets + 1
       merged_dets_indices(n_merged_dets) = ptr_this
-      if (present(indices_old)) indices_old(ptr_this) = n_merged_dets
       ptr_this = ptr_this + 1
     enddo
     do while (ptr_dets <= dets%n)
@@ -214,30 +266,33 @@ module dets_module
       ptr_dets = ptr_dets + 1
     enddo
 
-    allocate(new_dets(n_merged_dets))
+    allocate(new_up(this%det_size, n_merged_dets))
+    allocate(new_dn(this%det_size, n_merged_dets))
     do i = 1, n_merged_dets
       idx = merged_dets_indices(i)
       if (idx <= n) then
-        new_dets(i) = this%dets(idx)
+        new_up(:, i) = this%up(:, idx)
+        new_dn(:, i) = this%dn(:, idx)
       else
-        new_dets(i) = dets%dets(idx - n)
+        new_up(:, i) = dets%up(:, idx - n)
+        new_dn(:, i) = dets%dn(:, idx - n)
       endif
     enddo
-    deallocate(this%dets)
-    call move_alloc(new_dets, this%dets)
+    if(allocated(this%up)) deallocate(this%up)
+    if(allocated(this%dn)) deallocate(this%dn)
+    call move_alloc(new_up, this%up)
+    call move_alloc(new_dn, this%dn)
     this%n = n_merged_dets
   end subroutine merge_sorted_dets
 
   subroutine assign_dets(dest, src)
     class(dets_type), intent(in) :: src
     class(dets_type), intent(out) :: dest
-    integer :: i
 
-    call dest%reserve(src%n)
+    call dest%initialize(src%det_size, size(src%up, 2))
     dest%n = src%n
-    do i = 1, src%n
-      dest%dets(i) = src%dets(i)
-    enddo
+    dest%up(:, :) = src%up(:, :)
+    dest%dn(:, :) = src%dn(:, :)
   end subroutine assign_dets
 
 end module dets_module

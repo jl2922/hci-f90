@@ -1,5 +1,8 @@
 [default]
-cflags   = -c -cpp -O0 -C -g
+cflags = -c -cpp -O3 -C -fcheck=all -g
+lflags = -cpp -O3 -C -g
+ext_libs = lapack blas
 fc = gfortran
 modsw = -J
-exclude = utilities_module.fpp
+exclude = utilities_module.fpp linked_list_module.fpp
+log = False

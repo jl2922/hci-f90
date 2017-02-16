@@ -3,6 +3,9 @@ module solver_module
   use constants_module
   use det_module
   use dets_module
+  use linked_list_module__int
+  use linked_list_module__double
+  use spin_det_module
   use types_module
   use utilities_module
 
@@ -11,6 +14,7 @@ module solver_module
   private
 
   integer, parameter :: MAX_VAR_ITERATION = 20
+  integer, parameter :: MIN_PT_ST_ITERATION = 10
 
   public :: solver_type
 
@@ -65,24 +69,18 @@ module solver_module
     real(DOUBLE) :: eps_pt = 1.0e-5_DOUBLE
     real(DOUBLE) :: tol = 1.0e-3_DOUBLE ! 1 mHa.
     logical :: dump_var_wf = .true.
-
-    ! Initialized to -1 for checking availablity in namelist.
     real(DOUBLE) :: eps_pt_det = -1 ! eps for the deterministic part of PT.
-    real(DOUBLE) :: n_samples = -1 ! For stochastic PT. Real to allow exponential format.
-
+    real(DOUBLE) :: n_samples = -1 ! For stochastic PT. Real to allow sci format.
     integer :: io_err
-
     namelist /hci/ n_up, n_dn, n_states, &
         & eps_var, eps_pt, eps_pt_det, tol, dump_var_wf, n_samples
 
     rewind(config_file_unit)
     read(unit=config_file_unit, nml=hci, iostat=io_err)
     if (io_err > 0) stop 'Cannot read HCI configs.'
-
     if (n_up < 0 .or. n_dn < 0) then
       stop 'n_up and n_dn must be provided.'
     end if
-
     this%eps_var = eps_var
     this%eps_pt = eps_pt
     this%tol = tol
@@ -92,14 +90,12 @@ module solver_module
     n_elec = n_up + n_dn
     this%n_elec = n_elec
     this%n_states = n_states
-
     if (eps_pt_det > 0) then
       this%eps_pt_det%instance = eps_pt_det
       this%eps_pt_det%is_present = .true.
     else
       this%eps_pt_det%is_present = .false.
     end if
-
     if (n_samples > 0) then
       this%n_samples%instance = nint(n_samples)
       this%n_samples%is_present = .true.
@@ -138,10 +134,10 @@ module solver_module
   subroutine solve(this, config_file_unit)
     class(solver_type), intent(inout) :: this
     integer, intent(in) :: config_file_unit
-
-    integer :: iter
-    integer :: n_dets_prev, n_dets_cur
+    integer :: i
     real(DOUBLE) :: energy_prev, energy_cur
+    real(DOUBLE), allocatable :: tmp_coefs(:)
+    type(dets_type) :: dets_prev
 
     call this%read_configs(config_file_unit)
 
@@ -151,32 +147,32 @@ module solver_module
 
     write (6, '(A)') '[VARIATION]'
     write (6, '(A, G0.10)') 'eps_var: ', this%eps_var
-
     energy_prev = 0
-    n_dets_prev = 1
-
-    do iter = 1, MAX_VAR_ITERATION
-      write (6, '(A, I0)') 'Iteration #', iter
+    dets_prev = this%dets
+    do i = 1, MAX_VAR_ITERATION
+      write (6, '(A, I0)') 'Variation Iteration #', i
       call this%get_next_dets()
-      n_dets_cur = this%dets%n
-      ! if (n_dets_cur < 1.01 * n_dets_prev) then
-      !   this%dets%n = n_dets_prev
-      !   write (6, '(A)') 'Number of dets change within 1%. Variation finished.'
-      !   exit
-      ! end if
-      n_dets_prev = n_dets_cur
-      call this%diagonalize(energy_cur)
-
-      write (6, '(A, F0.10)') 'Energy: ', energy_cur
+      if (this%dets%n < 1.01 * dets_prev%n) then
+        this%dets = dets_prev
+        write (6, '(A)') 'Number of dets change within 1%. Variation finished.'
+        exit
+      end if
       write (6, '(A, G0.10)') 'Number of dets: ', this%dets%n
+      allocate(tmp_coefs(this%dets%n))
+      tmp_coefs(:) = 0.0_DOUBLE
+      tmp_coefs(1:dets_prev%n) = this%coefs(1:dets_prev%n)
+      call move_alloc(tmp_coefs, this%coefs)
+      call this%diagonalize(energy_cur)
+      write (6, '(A, F0.10)') 'Energy: ', energy_cur
       write (6, '()')
       call flush(6)
-      if (abs(energy_prev - energy_cur) < max(1.0e-6, this%tol * 0.1)) then
+      if (abs(energy_prev - energy_cur) < 1.0e-6) then
         this%var_energy = energy_cur
-        write (6, '(A)') 'Energy change within tolerance. Variation finished.'
+        write (6, '(A)') 'Energy change within 1.0e-6. Variation finished.'
         exit
       end if
       energy_prev = energy_cur
+      dets_prev = this%dets
     end do
     write (6, '()')
 
@@ -191,41 +187,48 @@ module solver_module
 
   subroutine setup(this)
     class(solver_type), intent(inout) :: this
+
     write (6, '(A)') 'No system specific setup provided.'
   end subroutine setup
 
   function get_hamiltonian_elem(this, det_pq, det_rs) result(H)
     class(solver_type), intent(inout) :: this
-    type(det_type), intent(in) :: det_pq, det_rs
+    type(det_type), intent(inout) :: det_pq, det_rs
     real(DOUBLE) :: H
+
     stop 'get_hamiltonian_elem function has not been overloaded.'
   end function
 
   subroutine get_next_dets(this)
     class(solver_type), intent(inout) :: this
     integer :: i, j
+    integer :: n_dets_old
+    integer, allocatable :: indices_old(:)
+    real(DOUBLE), allocatable :: tmp_coefs(:)
     type(dets_type) :: connected_dets
     type(dets_type) :: new_dets
-    type(det_type) :: tmp_det
 
-    do i = 1, this%dets%n
-      call this%find_connected_dets(this%dets%get_det(i), connected_dets, &
+    n_dets_old = this%dets%n
+    call this%dets%dets(1)%print()
+    do i = 1, n_dets_old
+      call this%find_connected_dets(this%dets%dets(i), connected_dets, &
           & this%eps_var / abs(this%coefs(i)))
       call connected_dets%sort()
-      call connected_dets%filter_by_sorted_dets(this%dets)
       call new_dets%merge_sorted_dets(connected_dets)
     end do
-    call this%dets%merge_sorted_dets(new_dets)
-    do i = 1, this%dets%n
-      tmp_det = this%dets%get_det(i)
-      print *, 'det #', i
-      call tmp_det%print_det()
-    end do
+    call this%dets%merge_sorted_dets(new_dets, indices_old)
+    call this%dets%dets(1)%print()
+    allocate(tmp_coefs(this%dets%n))
+    tmp_coefs(:) = 0
+    do i = 1, n_dets_old
+      tmp_coefs(indices_old(i)) = this%coefs(i)
+    enddo
+    call move_alloc(tmp_coefs, this%coefs)
   end subroutine get_next_dets
 
   subroutine find_connected_dets(this, det, connected_dets, eps_min)
     class(solver_type), intent(inout) :: this
-    type(det_type), intent(in) :: det
+    type(det_type), intent(inout) :: det
     type(dets_type), intent(out) :: connected_dets
     real(DOUBLE), intent(in) :: eps_min
 
@@ -238,86 +241,96 @@ module solver_module
     real(DOUBLE), intent(out) :: lowest_eigenvalue
     integer :: n
     integer :: n_up
-    integer :: det_size
     integer, allocatable :: n_nonzero_elems(:)
-    type(linked_list_int_type) :: H_indices
-    type(linked_list_double_type) :: H_values
+    real(DOUBLE), allocatable :: lowest_eigenvalues(:)
+    real(DOUBLE), allocatable :: initial_vectors(:, :)
+    real(DOUBLE), allocatable :: final_vectors(:, :)
+    type(linked_list_type__int) :: H_indices
+    type(linked_list_type__double) :: H_values
 
     n = this%dets%n
     n_up = this%n_up
-    det_size = this%dets%det_size
-
     if (n == 1) then
       lowest_eigenvalue = this%HF_energy
       return
     end if
-    
+    allocate(n_nonzero_elems(n))
+    n_nonzero_elems = 0
+    write (6, '(A)') 'Generating sparse hamiltonian...'
     call generate_sparse_hamiltonian()
-    call davidson_sparse()
 
-    lowest_eigenvalue = 0
+    allocate(lowest_eigenvalues(1))
+    allocate(initial_vectors(n, 1))
+    allocate(final_vectors(n, 1))
+    initial_vectors(:, 1) = this%coefs(:)
+    print *, this%coefs
+    write (6, '(A)') 'Performing davidson diagonalization...'
+    call davidson_sparse(n, 1, final_vectors, lowest_eigenvalues, &
+        & H_indices, n_nonzero_elems, H_values, initial_vectors)
+    lowest_eigenvalue = lowest_eigenvalues(1)
+    this%coefs(:) = final_vectors(:, 1)
 
     contains
 
     subroutine generate_sparse_hamiltonian()
-      integer(LONG), allocatable :: spin_det(:)
       integer :: cnt
-      integer :: i, j
-      integer, allocatable :: elec_orbitals(:)
+      integer :: i, j, k
+      integer :: ii
+      integer :: ptr
+      integer :: distinct_cnt
+      integer, allocatable :: up_elec_orbitals(:)
       integer, allocatable :: alpha_m1_idx(:)
       integer, allocatable :: beta_idx(:)
       integer, allocatable :: tmp_H_indices(:)
-      integer(LONG), allocatable :: alpha_m1(:, :)
-      integer(LONG), allocatable :: beta(:, :)
+      integer, allocatable :: order(:)
+      real(DOUBLE) :: H
       real(DOUBLE), allocatable :: tmp_H_values(:)
+      type(spin_det_type) :: tmp_spin_det
+      type(spin_det_type), allocatable :: alpha_m1(:)
+      type(spin_det_type), allocatable :: beta(:)
       type(det_type) :: tmp_det
-      
+
       ! Setup alpha_m1 and beta strings.
-      allocate(spin_det(det_size))
-      allocate(beta(det_size, n))
+      allocate(beta(n))
       allocate(beta_idx(n))
-      beta(:, :) = this%dets%dn(:, :)
       do i = 1, n
+        tmp_det = this%dets%get_det(i)
+        beta(i) = tmp_det%dn
         beta_idx(i) = i
       end do
       call sort_by_first_arg(n, beta, beta_idx)
-      do i = 1, n
-        write (6, '(B0.64, A, I0)') beta(1, i), ': ', beta_idx(i)
-      end do
-      allocate(alpha_m1(det_size, n * n_up))
+      allocate(alpha_m1(n * n_up))
       allocate(alpha_m1_idx(n * n_up))
-      allocate(elec_orbitals(n_up))
+      allocate(up_elec_orbitals(n_up))
       do i = 1, n
         tmp_det = this%dets%get_det(i)
-        call tmp_det%get_elec_orbitals(C%UP_SPIN, elec_orbitals, n_up)
+        call tmp_det%up%get_elec_orbitals(up_elec_orbitals, n_up)
         do j = 1, n_up
-          spin_det(:) = this%dets%up(:, i) 
-          call util%ab_set(spin_det, elec_orbitals(j), .false.)
-          alpha_m1(:, n_up * (i - 1) + j) = spin_det(:)
+          alpha_m1(n_up * (i - 1) + j) = tmp_det%up
+          call alpha_m1(n_up * (i - 1) + j)%set_orbital(up_elec_orbitals(j), .false.)
         end do
-      end do
-      do i = 1, n
         alpha_m1_idx(n_up * (i - 1) + 1: n_up * i) = i
       end do
       call sort_by_first_arg(n, alpha_m1, alpha_m1_idx)
-      do i = 1, n
-        write (6, '(B0.64, A, I0)') alpha_m1(1, i), ': ', alpha_m1_idx(i)
-      end do
-      
+      write (6, '(A)') 'alpha and beta strings created.'
+
       ! Generate H with the helper strings.
+      allocate(tmp_H_indices(this%max_connected_dets))
+      allocate(tmp_H_values(this%max_connected_dets))
       do i = 1, n
         ! Diagonal elem.
-        det_cur = this%get_det(i)
+        tmp_det = this%dets%dets(i)
         cnt = 1
         tmp_H_indices(cnt) = i
-        tmp_H_values(cnt) = this%get_hamiltonian_elem(det_cur, det_cur)
+        tmp_H_values(cnt) = this%get_hamiltonian_elem(tmp_det, tmp_det)
 
-        call util%binary_search(det_cur%dn, beta, k)
+        ! 2 up.
+        k = util%binary_search(tmp_det%dn, beta)
         ptr = k
-        do while (util%ab_eq(det_cur%dn, beta(ptr)) .and. ptr > 0)
+        do while (tmp_det%dn == beta(ptr))
           j = beta_idx(ptr)
           if (j /= i) then
-            H = this%get_hamiltonian_elem(det_cur, this%dets%get_det(j))
+            H = this%get_hamiltonian_elem(tmp_det, this%dets%dets(j))
             if (abs(H) > C%EPS) then
               cnt = cnt + 1
               tmp_H_indices(cnt) = j
@@ -325,12 +338,13 @@ module solver_module
             end if
           end if
           ptr = ptr - 1
+          if (ptr == 0) exit
         end do
         ptr = k
-        do while (util%ab_eq(det_cur%dn, beta(ptr)) .and. ptr <= n)
+        do while (tmp_det%dn == beta(ptr))
           j = beta_idx(ptr)
           if (j /= i) then
-            H = this%get_hamiltonian_elem(det_cur, this%dets%get_det(j))
+            H = this%get_hamiltonian_elem(tmp_det, this%dets%dets(j))
             if (abs(H) > C%EPS) then
               cnt = cnt + 1
               tmp_H_indices(cnt) = j
@@ -338,17 +352,20 @@ module solver_module
             end if
           end if
           ptr = ptr + 1
+          if (ptr > n) exit
         end do
-        
-        call det_cur%get_elec_orbitals(C%UP_SPIN, occ_up)
+
+        ! 2 dn or (1 up and 1 dn).
+        call tmp_det%up%get_elec_orbitals(up_elec_orbitals)
         do ii = 1, n_up
-          spin_det(:) = this%dets%up(:, i) 
-          call util%ab_set(spin_det, elec_orbitals(j), .false.)
-          call util%binary_search(spin_det, alpha_m1, k)
-          do while (util%ab_eq(spin_det, beta(ptr)) .and. ptr > 0)
+          tmp_spin_det = tmp_det%up
+          call tmp_spin_det%set_orbital(up_elec_orbitals(ii), .false.)
+          k = util%binary_search(tmp_spin_det, alpha_m1)
+          ptr = k
+          do while (tmp_spin_det == alpha_m1(ptr))
             j = alpha_m1_idx(ptr)
             if (j /= i) then
-              H = this%get_hamiltonian_elem(det_cur, this%dets%get_det(j))
+              H = this%get_hamiltonian_elem(tmp_det, this%dets%dets(j))
               if (abs(H) > C%EPS) then
                 cnt = cnt + 1
                 tmp_H_indices(cnt) = j
@@ -356,12 +373,13 @@ module solver_module
               end if
             end if
             ptr = ptr - 1
+            if (ptr == 0) exit
           end do
           ptr = k
-          do while (util%ab_eq(spin_det, beta(ptr)) .and. ptr <= n)
+          do while (tmp_spin_det == alpha_m1(ptr))
             j = alpha_m1_idx(ptr)
             if (j /= i) then
-              H = this%get_hamiltonian_elem(det_cur, this%dets%get_det(j))
+              H = this%get_hamiltonian_elem(tmp_det, this%dets%dets(j))
               if (abs(H) > C%EPS) then
                 cnt = cnt + 1
                 tmp_H_indices(cnt) = j
@@ -369,48 +387,51 @@ module solver_module
               end if
             end if
             ptr = ptr + 1
+            if (ptr > n * n_up) exit
           end do
         end do
 
         ! Add to H.
         call util%arg_sort(tmp_H_indices, order, cnt)
         distinct_cnt = 0
-        do i = 1, cnt
-          if (i > 1 .and. tmp_H_indices(order(i)) == tmp_H_indices(order(i - 1))) then
-            cycle
-          end if
-          H_indices%append(tmp_H_indices(order(i)))
-          H_values%append(tmp_H_values(order(i)))
+        do ii = 1, cnt
+          if (ii > 1) then
+            if (tmp_H_indices(order(ii)) == tmp_H_indices(order(ii - 1))) then
+              cycle
+            end if
+          endif
+          if (tmp_H_indices(order(ii)) < i) cycle
+          call H_indices%append(tmp_H_indices(order(ii)))
+          call H_values%append(tmp_H_values(order(ii)))
           distinct_cnt = distinct_cnt + 1
         end do
         n_nonzero_elems(i) = distinct_cnt
       end do
-      
+      write (6, '(A, G0.10)') 'Nonzero elems in H: ', sum(n_nonzero_elems)
     end subroutine generate_sparse_hamiltonian
 
     subroutine sort_by_first_arg(n, arr, idx)
       integer, intent(in) :: n
-      integer(LONG), allocatable, intent(inout) :: arr(:, :)
+      type(spin_det_type), intent(inout) :: arr(:)
       integer, allocatable, intent(inout) :: idx(:)
       integer :: gap
-      integer(LONG), allocatable :: tmp_elem(:)
+      type(spin_det_type) :: tmp_elem
       integer :: tmp_idx
       integer :: i, j
 
-      allocate(tmp_elem(det_size))
       gap = size(arr) / 2
       do while (gap > 0)
         do i = gap+1, size(arr)
           j = i
-          tmp_elem(:) = arr(:, i)
+          tmp_elem = arr(i)
           tmp_idx = idx(i)
           do while (j >= gap+1)
-            if (.not. util%ab_gt(arr(:, j - gap), tmp_elem)) exit
-            arr(:, j) = arr(:, j-gap)
+            if (.not. (arr(j - gap) > tmp_elem)) exit
+            arr(j) = arr(j-gap)
             idx(j) = idx(j-gap)
             j = j - gap
           end do
-          arr(:, j) = tmp_elem(:)
+          arr(j) = tmp_elem
           idx(j) = tmp_idx
         end do
         if (gap == 2) then
@@ -421,8 +442,223 @@ module solver_module
       end do
     end subroutine sort_by_first_arg
 
-    subroutine davidson_sparse()
+!=============================================================================== 
+    subroutine davidson_sparse(n,n_states,final_vector,lowest_eigenvalues,matrix_indices,nelem_nonzero,matrix_values,initial_vector)
+    ! Diagonally pre-conditioned Davidson
+    ! A Holmes, 17 Nov 2016
+
+    implicit none
+
+    ! Dummy
+    integer,intent(in)        :: n,n_states
+    integer,intent(in)   :: nelem_nonzero(:)
+    type(linked_list_type__int), intent(inout) :: matrix_indices
+    type(linked_list_type__double), intent(inout) :: matrix_values
+    real(DOUBLE),intent(out)      :: final_vector(:,:)
+    real(DOUBLE),intent(out)      :: lowest_eigenvalues(:)
+    real(DOUBLE),intent(in),optional :: initial_vector(:,:)
+
+    ! Local
+    integer                  :: i,it
+    !real(DOUBLE)                 :: rannyu
+    real(DOUBLE)                 :: energy_shift
+    real(DOUBLE)                 :: norm,norm_inv
+    real(DOUBLE),allocatable :: residual_norm(:)
+    real(DOUBLE),allocatable     :: w(:,:),Hw(:,:),v(:,:),Hv(:,:)
+    integer                  :: iterations
+    real(DOUBLE),allocatable :: lowest_eigenvalues_prev(:)
+    logical                  :: converged=.false.
+    integer                  :: len_work,info
+    real(DOUBLE),allocatable     :: work(:),eigenvalues(:),h_krylov(:,:),h_overwrite(:,:)
+    real(DOUBLE),allocatable     :: diag_elems(:)
+    integer :: ind,j
+    integer :: niter
+    integer :: n_diagonalize
+
+    ! v(:,1:n_states) are input vectors, v(:,i) for i>n_states are residuals
+    ! w(:,1:n_states) are the best vectors so far
+
+    iterations=500        ! User option
+    iterations=min(n,iterations)
+    allocate(lowest_eigenvalues_prev(n_states))
+    allocate(v(n,n_states*iterations))
+    allocate(Hv(n,n_states*iterations))
+    allocate(w(n,n_states))
+    allocate(Hw(n,n_states))
+    allocate(residual_norm(n_states))
+
+    if (present(initial_vector)) then
+      do i=1,n_states
+        norm = 1._DOUBLE/sqrt(dot_product(initial_vector(:,i),initial_vector(:,i)))
+        v(:,i) = norm*initial_vector(:,i)
+        if (i>1) then
+          ! Orthogonalize
+          do j=1,i-1
+            norm=dot_product(v(:,i),v(:,j))
+            v(:,i)=v(:,i)-norm*v(:,j)
+          enddo
+          ! Normalize
+          norm=dot_product(v(:,i),v(:,i))
+          norm_inv=1._DOUBLE/sqrt(norm)
+          v(:,i)=v(:,i)*norm_inv
+        endif
+      enddo
+    else
+      ! Start with HF and random dets
+      v(:,:)=0
+      do i=1,n_states
+        v(i,i)=1
+      enddo
+    endif
+
+    energy_shift=0._DOUBLE
+    allocate (h_krylov(n_states*iterations,n_states*iterations))
+    allocate (h_overwrite(n_states*iterations,n_states*iterations))
+
+    allocate(eigenvalues(n_states*iterations))
+    len_work = 3*n_states*iterations-1
+    allocate(work(len_work))
+
+    converged=.false.
+
+    ! w is the lowest energy vector so far
+    if (n>1) then
+      ! Get diagonal elements
+      allocate(diag_elems(n))
+      call matrix_values%begin()
+      do i = 1, n
+        diag_elems(i) = matrix_values%get()
+        do j = 1, n_nonzero_elems(i)
+          if (i == 1) print *, matrix_values%get()
+          call matrix_values%next()
+        enddo
+      enddo
+
+      ! First iteration:
+      do i=1,n_states
+        call sparse_matrix_mul(v(:, i), Hv(:, i))
+      enddo
+
+      do i=1,n_states
+        lowest_eigenvalues(i) = dot_product(v(:,i),Hv(:,i))
+        h_krylov(i,i) = lowest_eigenvalues(i)
+        do j=i+1,n_states
+          h_krylov(i,j) = dot_product(v(:,i),Hv(:,j))
+          h_krylov(j,i) = h_krylov(i,j)
+        enddo
+      enddo
+
+      write(6,'(''Iteration, Eigenvalues='',i3,10f16.9)') 1, lowest_eigenvalues(:)
+
+      w(:,:) = v(:,1:n_states)
+      Hw(:,:) = Hv(:,1:n_states)
+
+      residual_norm(:) = 1._DOUBLE ! so at least one iteration is done
+
+      niter = min(n,n_states*(iterations+1))
+
+      n_diagonalize = 1 ! just for printout
+
+      do it=n_states+1,niter
+         ! Compute residual for state i
+         i = mod(it-1,n_states)+1
+         v(:,it) = (Hw(:,i) - lowest_eigenvalues(i)*w(:,i))/(lowest_eigenvalues(i) - diag_elems(:))
+
+         do j=1,n
+           if (abs(lowest_eigenvalues(i)-diag_elems(j))<1e-8_DOUBLE)  v(j,it) = -1._DOUBLE  ! Since denominator could be 0
+         enddo
+
+         ! If residual small, converged
+         residual_norm(i)=dot_product(v(:,it),v(:,it))
+         if (sum(residual_norm)<(1.e-12_DOUBLE))  converged=.true.
+
+         ! Orthogonalize
+         do i=1,it-1
+           norm=dot_product(v(:,it),v(:,i))
+           v(:,it)=v(:,it)-norm*v(:,i)
+         enddo
+
+         ! Normalize
+         norm=dot_product(v(:,it),v(:,it))
+         norm_inv=1._DOUBLE/sqrt(norm)
+         v(:,it)=v(:,it)*norm_inv
+
+         ! Apply H once
+         call sparse_matrix_mul(v(:, it), Hv(:, it))
+
+         ! Construct Krylov matrix and diagonalize
+         do i=1,it
+           h_krylov(i,it) = dot_product(v(:,i),Hv(:,it))
+           h_krylov(it,i) = h_krylov(i,it)
+         enddo
+
+         ! Diagonalize with lapack routine after all new states added
+         if (mod(it,n_states)==0) then
+
+           len_work = 3*it-1
+           h_overwrite(1:it,1:it) = h_krylov(1:it,1:it)
+           call dsyev('V', 'U', it, h_overwrite(1:it,1:it), it, eigenvalues, work, len_work, info)
+
+           lowest_eigenvalues(:)=eigenvalues(1:n_states)
+
+           do i=1,n_states
+             w(:,i)=matmul(v(:,1:it),h_overwrite(1:it,i))
+             Hw(:,i)=matmul(Hv(:,1:it),h_overwrite(1:it,i))
+           enddo
+
+           if (it.gt.1 .and. maxval(abs(lowest_eigenvalues(:)-lowest_eigenvalues_prev(:))) < 1.0e-10_DOUBLE) then
+               converged=.true.
+               exit
+           else
+               lowest_eigenvalues_prev(:)=lowest_eigenvalues(:)
+               n_diagonalize = n_diagonalize + 1
+               write(6,'(''Iteration, Eigenvalues='',i3,10f16.9)') n_diagonalize, lowest_eigenvalues(:)
+               call flush(6)
+           endif
+           if (converged)  exit
+
+         endif ! Diagonalize
+
+      enddo ! it
+
+      write(6,'(''davidson_sparse: n, Lowest eigenvalue ='',i10, 10f17.10)') n, lowest_eigenvalues(:)
+      call flush(6)
+
+      if (allocated(eigenvalues)) deallocate(eigenvalues)
+      if (allocated(h_krylov))     deallocate(h_krylov)
+      if (allocated(work))        deallocate(work)
+
+    else
+      stop 'Shall not reach here.'
+    endif
+
+    final_vector(:,:)=w(:,:)
+
     end subroutine davidson_sparse
+!=============================================================================== 
+
+    subroutine sparse_matrix_mul(vec, res)
+      real(DOUBLE), intent(in) :: vec(:)
+      real(DOUBLE), intent(out) :: res(:)
+      integer :: i, j, m
+      real(DOUBLE) :: x
+
+      call H_indices%begin()
+      call H_values%begin()
+      do i = 1, this%dets%n
+        x = res(i)
+        do j = 1, n_nonzero_elems(i)
+          m = H_indices%get()
+          x = x + H_values%get() * vec(m)
+          if (m /= i) then
+            res(m) = res(m) + H_values%get() * vec(i)
+          end if
+          call H_indices%next()
+          call H_values%next()
+        end do
+        res(i) = x
+      end do
+    end subroutine sparse_matrix_mul
 
   end subroutine diagonalize
 

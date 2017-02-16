@@ -1,0 +1,34 @@
+Hierarchical dependencies list of: ./src/hci.f90
+  ./src/solver_controller_module.f90
+    ./src/heg_solver_module.f90
+    ./src/utilities_module.f90
+Complete ordered dependencies list of: ./src/hci.f90
+  ./src/types_module.f90
+  ./src/constants_module.f90
+  ./src/spin_det_module.f90
+  ./src/det_module.f90
+  ./src/dets_module.f90
+  ./src/linked_list_module.f90
+  ./src/utilities_module.f90
+  ./src/solver_module.f90
+  ./src/heg_solver_module.f90
+  ./src/solver_controller_module.f90
+  ./src/hci.f90
+Builder options
+  Directories
+    Building directory: "."
+    Compiled-objects .o   directory: "obj"
+    Compiled-objects .mod directory: "mod"
+  Linked libraries in path: lapack blas 
+  Compiler options
+    Vendor: "intel"
+    Compiler command: "gfortran"
+    Module directory switch: "-J"
+    Compiling flags: "-c -cpp -O3 -C"
+    Linking flags: "-cpp -O3 -C"
+    Preprocessing flags: ""
+    Coverage: False
+    Profile: False
+  Preprocessor used: None
+  Preprocessor output directory: None
+  Preprocessor extensions processed: []

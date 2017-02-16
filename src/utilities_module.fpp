@@ -32,9 +32,11 @@ module utilities_module
     end do
   end function get_free_unit
   
-  subroutine arg_sort_double(this, arr, order, n)
+  #:set shortname {'real(DOUBLE)': 'double', 'integer': 'int'}
+  #:for dtype in ['real(DOUBLE)', 'integer']
+  subroutine arg_sort_${shortname[dtype]}$(this, arr, order, n)
     class(utilities_type), intent(in) :: this
-    real(DOUBLE), intent(in) :: arr(:)
+    ${dtype}$, intent(in) :: arr(:)
     integer, allocatable, intent(out) :: order(:)
     integer, intent(in) :: n
     integer :: i
@@ -93,69 +95,8 @@ module utilities_module
         order(pos + 1: right) = tmp_order(ptr1: mid)
       end if
     end subroutine recur
-  end subroutine arg_sort_double
-  subroutine arg_sort_int(this, arr, order, n)
-    class(utilities_type), intent(in) :: this
-    integer, intent(in) :: arr(:)
-    integer, allocatable, intent(out) :: order(:)
-    integer, intent(in) :: n
-    integer :: i
-    integer, allocatable :: tmp_order(:)
-
-    if (.not. allocated(order)) then
-      allocate(order(n))
-    end if
-    do i = 1, n
-      order(i) = i
-    end do
-    allocate(tmp_order(n))
-
-    call recur(1, n)
-
-    contains
-
-    recursive subroutine recur(left, right)
-      integer, intent(in) :: left, right
-      integer :: mid
-      integer :: tmp
-      integer :: pos
-      integer :: ptr1, ptr2
-
-      if (left == right) return
-      if (left == right - 1) then
-        if (arr(left) > arr(right)) then
-          tmp = order(right)
-          order(right) = order(left)
-          order(left) = tmp
-        end if
-        return
-      end if
-
-      mid = (left + right) / 2
-      call recur(left, mid)
-      call recur(mid + 1, right)
-
-      ! Merge
-      tmp_order(left: mid) = order(left: mid)
-      ptr1 = left
-      ptr2 = mid + 1
-      do pos = left, right
-        if (arr(tmp_order(ptr1)) <= arr(order(ptr2))) then
-          order(pos) = tmp_order(ptr1)
-          ptr1 = ptr1 + 1
-        else
-          order(pos) = order(ptr2)
-          ptr2 = ptr2 + 1
-        end if
-        if (ptr1 > mid .or. ptr2 > right) then
-          exit
-        end if
-      end do
-      if (ptr1 <= mid) then
-        order(pos + 1: right) = tmp_order(ptr1: mid)
-      end if
-    end subroutine recur
-  end subroutine arg_sort_int
+  end subroutine arg_sort_${shortname[dtype]}$
+  #:endfor
 
   function binary_search_spin_det(this, val, arr) result(k)
     class(utilities_type), intent(in) :: this

@@ -9,11 +9,11 @@ module solver_controller_module
 
   public :: solver_controller_type
 
-  integer, parameter :: SYSTEM_NAME_LENGTH = 80
+  integer, parameter :: SYSTEM_NAME_LENGTH = 128
 
   type solver_controller_type
     private
-    type(heg_solver_type) :: heg_solver
+    type(heg_solver_type), pointer :: heg_solver
     contains
       procedure, public :: start
       procedure :: create_config_file
@@ -32,9 +32,9 @@ module solver_controller_module
 
     write (6, '(A, A)') 'System: ', system_name
     write (6, '()')
-
     select case (system_name)
     case ('heg')
+      allocate(this%heg_solver)
       call this%heg_solver%solve(config_file_unit)
     case default
       stop 'Unrecognized system'
@@ -44,13 +44,13 @@ module solver_controller_module
   function create_config_file(this) result(config_file_unit)
     class(solver_controller_type), intent(inout) :: this
     integer :: config_file_unit
-    integer, parameter :: MAX_LINE_LENGTH = 256
+    integer, parameter :: MAX_LINE_LENGTH = 1024
     character(MAX_LINE_LENGTH) :: line
     integer :: io_err
 
     config_file_unit = util%get_free_unit()
-    open(unit=config_file_unit, status='scratch', recl=MAX_LINE_LENGTH, delim='APOSTROPHE')
-
+    open(unit=config_file_unit, status='scratch', &
+        & recl=MAX_LINE_LENGTH, delim='APOSTROPHE')
     do
       read(5, '(A)', iostat = io_err) line
       if (io_err < 0) then
@@ -75,7 +75,6 @@ module solver_controller_module
     rewind(config_file_unit)
     read(unit=config_file_unit, nml=system, iostat=io_err)
     if (io_err > 0) stop 'Cannot obtain system name.'
-
     system_name = name
   end function get_system_name
 
