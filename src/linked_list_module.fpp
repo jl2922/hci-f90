@@ -11,9 +11,10 @@ module linked_list_module__${shortname[dtype]}$
   private
 
   public :: linked_list_type__${shortname[dtype]}$
+  public :: new_linked_list__${shortname[dtype]}$
 
-  ! integer, parameter :: TRUNK_SIZE = 16384 ! Fits into the CPU L2 cache we have.
-  integer, parameter :: TRUNK_SIZE = 4 ! For testing.
+  integer, parameter :: TRUNK_SIZE = 65536 ! Fits into the CPU L2 cache we have.
+  ! integer, parameter :: TRUNK_SIZE = 1024 ! For testing.
 
   type :: node_type
     private
@@ -36,7 +37,17 @@ module linked_list_module__${shortname[dtype]}$
       procedure, public :: clear
   end type linked_list_type__${shortname[dtype]}$
 
+  interface new_linked_list__${shortname[dtype]}$
+    module procedure new_linked_list__${shortname[dtype]}$_default
+  end interface
+
   contains
+
+  function new_linked_list__${shortname[dtype]}$_default() result(list)
+    type(linked_list_type__${shortname[dtype]}$), pointer :: list
+
+    allocate(list)
+  end function new_linked_list__${shortname[dtype]}$_default
 
   subroutine append(this, item)
     class(linked_list_type__${shortname[dtype]}$), intent(inout) :: this

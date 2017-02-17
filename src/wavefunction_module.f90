@@ -1,4 +1,4 @@
-module dets_module
+module wavefunction_module
 
   use constants_module
   use det_module
@@ -8,76 +8,127 @@ module dets_module
 
   private
 
-  public :: dets_type
+  public :: wavefunction_type
+  public :: new_wavefunction
   public :: assignment(=)
 
-  type dets_type
+  type wavefunction_type
     private
     integer, public :: n = 0 ! n <= 2nd rank of up/dn.
     logical, public :: is_sorted = .true. ! True if sorted in increasing order.
-    type(det_type), allocatable, public :: dets(:)
+    type(det_type), pointer, public :: dets(:) => null()
+    real(DOUBLE), allocatable, public :: coefs(:)
     contains
-      procedure, public :: reserve
-      procedure, public :: append
+      procedure, public :: reserve_dets
+      procedure, public :: append_det
       procedure, public :: initialize
       procedure, public :: get_det
       procedure, public :: set_det
-      procedure, public :: sort ! Into ascending order.
+      procedure, public :: sort_dets ! Into ascending order.
       procedure, public :: merge_sorted_dets
-  end type dets_type
+      procedure, public :: print
+  end type wavefunction_type
+
+  interface new_wavefunction
+    module procedure new_wavefunction_default
+    module procedure new_wavefunction_reserve
+    module procedure new_wavefunction_clone
+  end interface new_wavefunction
 
   interface assignment(=)
-    module procedure assign_dets
+    module procedure assign_wavefunction
   end interface
 
   contains
 
-  subroutine reserve(this, capacity)
-    class(dets_type), intent(inout) :: this
-    integer, intent(in) :: capacity
-    if (allocated(this%dets) .and. size(this%dets) /= capacity) then
-      deallocate(this%dets)
-    end if
-    if (.not. allocated(this%dets)) then
-      allocate(this%dets(capacity))
-    end if
-  end subroutine reserve
+  function new_wavefunction_default() result(wf)
+    type(wavefunction_type), pointer :: wf
 
-  subroutine append(this, det)
-    class(dets_type), intent(inout) :: this
-    class(det_type), intent(in) :: det
+    allocate(wf)
+  end function new_wavefunction_default
+
+  function new_wavefunction_clone(src) result(wf)
+    type(wavefunction_type), pointer, intent(in) :: src
+    type(wavefunction_type), pointer :: wf
+
+    allocate(wf)
+    call assign_wavefunction(wf, src)
+  end function new_wavefunction_clone
+
+  function new_wavefunction_reserve(capacity) result(wf)
+    integer, intent(in) :: capacity
+    type(wavefunction_type), pointer :: wf
+
+    allocate(wf)
+    allocate(wf%dets(capacity))
+    allocate(wf%coefs(capacity))
+    wf%coefs(:) = 0
+  end function new_wavefunction_reserve
+
+  subroutine assign_wavefunction(dest, src)
+    type(wavefunction_type), pointer, intent(out) :: dest
+    type(wavefunction_type), pointer, intent(in) :: src
+    integer :: i
+
+    dest%n = src%n
+    dest%is_sorted = src%is_sorted
+    call dest%reserve_dets(src%n)
+    do i = 1, src%n
+      call dest%set_det(i, src%get_det(i))
+      dest%coefs(i) = src%coefs(i)
+    enddo
+  end subroutine assign_wavefunction
+
+  subroutine reserve_dets(this, capacity)
+    class(wavefunction_type), intent(inout) :: this
+    integer, intent(in) :: capacity
+
+    if (associated(this%dets) .and. size(this%dets) /= capacity) then
+      deallocate(this%dets)
+      nullify(this%dets)
+      deallocate(this%coefs)
+    end if
+    if (.not. associated(this%dets)) then
+      allocate(this%dets(capacity))
+      allocate(this%coefs(capacity))
+    end if
+  end subroutine reserve_dets
+
+  subroutine append_det(this, det)
+    class(wavefunction_type), intent(inout) :: this
+    class(det_type), pointer, intent(in) :: det
 
     if (size(this%dets) == this%n) then
       stop 'Not enough capacity.'
     endif
     this%n = this%n + 1
     call this%set_det(this%n, det)
-  end subroutine append
+  end subroutine append_det
 
   subroutine initialize(this, n_orb, capacity)
-    class(dets_type), intent(inout) :: this
+    class(wavefunction_type), intent(inout) :: this
     integer, intent(in) :: n_orb
     integer, intent(in) :: capacity
-    call this%reserve(capacity)
+    call this%reserve_dets(capacity)
     this%n = 0
   end subroutine initialize
 
   function get_det(this, idx) result(det)
-    class(dets_type), intent(inout) :: this
+    class(wavefunction_type), intent(inout) :: this
     integer, intent(in) :: idx
-    type(det_type) :: det
+    type(det_type), pointer:: det
     
     if (idx > this%n) then
       call backtrace
       stop 'get_det with idx out of bound.'
     end if
-    det = this%dets(idx)
+    det => this%dets(idx)
   end function get_det
 
   subroutine set_det(this, idx, det)
-    class(dets_type), intent(inout) :: this
+    class(wavefunction_type), intent(inout) :: this
     integer, intent(in) :: idx
-    type(det_type), intent(in) :: det
+    type(det_type), pointer, intent(in) :: det
 
     if (idx > this%n) stop 'set_det with idx out of bound.'
     this%dets(idx) = det
@@ -86,13 +137,13 @@ module dets_module
     end if
   end subroutine set_det
 
-  subroutine sort(this)
-    class(dets_type), intent(inout) :: this
+  subroutine sort_dets(this)
+    class(wavefunction_type), intent(inout) :: this
     integer :: i
     integer :: n
     integer, allocatable :: order(:)
     integer, allocatable :: tmp_order(:)
-    type(det_type), allocatable :: sorted_dets(:)
+    type(det_type), pointer :: sorted_dets(:)
 
     n = this%n
     if (n == 0) return
@@ -109,7 +160,7 @@ module dets_module
       sorted_dets(i) = this%dets(order(i))
     enddo
     deallocate(this%dets)
-    call move_alloc(sorted_dets, this%dets)
+    this%dets => sorted_dets
     this%is_sorted = .true.
 
     contains
@@ -154,14 +205,14 @@ module dets_module
       endif
     end subroutine recur
 
-  end subroutine sort
+  end subroutine sort_dets
 
-  subroutine merge_sorted_dets(this, dets, indices_old)
+  subroutine merge_sorted_dets(this, dets)
     ! Merge two sorted dets array into one sorted dets array.
+    ! Coefs of the old dets keep unchanged, new dets 0.
     ! Assuming no duplication.
-    class(dets_type), intent(inout) :: this
-    type(dets_type), intent(inout) :: dets
-    integer, allocatable, optional, intent(out) :: indices_old(:)
+    class(wavefunction_type), intent(inout) :: this
+    type(wavefunction_type), pointer, intent(inout) :: dets
     integer :: n
     integer :: dets_idx
     integer :: n_merged_dets
@@ -169,18 +220,14 @@ module dets_module
     integer :: idx
     integer, allocatable :: merged_dets_indices(:)
     integer :: ptr_this, ptr_dets
-    type(det_type), allocatable :: new_dets(:)
+    type(det_type), pointer :: new_dets(:)
+    real(DOUBLE), allocatable :: new_coefs(:)
 
     if (.not. dets%is_sorted) stop 'dets are not sorted.'
     if (.not. this%is_sorted) stop 'target dets are not sorted.'
 
     n = this%n
     if (dets%n == 0) return
-    if (n == 0) then
-      this = dets
-      return
-    endif
-    if (present(indices_old)) allocate(indices_old(n))
     allocate(merged_dets_indices(n + dets%n)) ! Indices > n for input dets.
     n_merged_dets = 0
     ptr_this = 1
@@ -190,22 +237,19 @@ module dets_module
       n_merged_dets = n_merged_dets + 1
       if (this%dets(ptr_this) < dets%dets(ptr_dets)) then
         merged_dets_indices(n_merged_dets) = ptr_this
-        if (present(indices_old)) indices_old(ptr_this) = n_merged_dets
         ptr_this = ptr_this + 1
       else if (this%dets(ptr_this) == dets%dets(ptr_dets)) then
         merged_dets_indices(n_merged_dets) = ptr_this
-        if (present(indices_old)) indices_old(ptr_this) = n_merged_dets
         ptr_this = ptr_this + 1
         ptr_dets = ptr_dets + 1
       else
-        merged_dets_indices(n_merged_dets) = ptr_dets + n
+       merged_dets_indices(n_merged_dets) = ptr_dets + n
         ptr_dets = ptr_dets + 1
       endif
     enddo
     do while (ptr_this <= n)
       n_merged_dets = n_merged_dets + 1
       merged_dets_indices(n_merged_dets) = ptr_this
-      if (present(indices_old)) indices_old(ptr_this) = n_merged_dets
       ptr_this = ptr_this + 1
     enddo
     do while (ptr_dets <= dets%n)
@@ -215,29 +259,45 @@ module dets_module
     enddo
 
     allocate(new_dets(n_merged_dets))
+    allocate(new_coefs(n_merged_dets))
     do i = 1, n_merged_dets
       idx = merged_dets_indices(i)
       if (idx <= n) then
         new_dets(i) = this%dets(idx)
+        new_coefs(i) = this%coefs(idx)
       else
         new_dets(i) = dets%dets(idx - n)
+        new_coefs(i) = 0.0_DOUBLE
       endif
     enddo
-    deallocate(this%dets)
-    call move_alloc(new_dets, this%dets)
+    if (associated(this%dets)) deallocate(this%dets)
+    this%dets => new_dets
+    call move_alloc(new_coefs, this%coefs)
     this%n = n_merged_dets
   end subroutine merge_sorted_dets
 
   subroutine assign_dets(dest, src)
-    class(dets_type), intent(in) :: src
-    class(dets_type), intent(out) :: dest
+    type(wavefunction_type), intent(in) :: src
+    type(wavefunction_type), intent(out) :: dest
     integer :: i
 
-    call dest%reserve(src%n)
+    call dest%reserve_dets(src%n)
     dest%n = src%n
     do i = 1, src%n
       dest%dets(i) = src%dets(i)
     enddo
   end subroutine assign_dets
 
-end module dets_module
+  subroutine print(this)
+    class(wavefunction_type), intent(inout) :: this
+    type(det_type), pointer :: tmp_det
+    integer :: i
+
+    do i = 1, this%n
+      tmp_det => this%get_det(i)
+      print *, '#', i, ' coefs = ', this%coefs(i)
+      call tmp_det%print()
+    enddo
+  end subroutine print
+
+end module wavefunction_module

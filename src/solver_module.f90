@@ -2,12 +2,12 @@ module solver_module
 
   use constants_module
   use det_module
-  use dets_module
   use linked_list_module__int
   use linked_list_module__double
   use spin_det_module
   use types_module
   use utilities_module
+  use wavefunction_module
 
   implicit none
 
@@ -28,7 +28,6 @@ module solver_module
     integer, public :: n_states
     integer, public :: max_n_rs_pairs
     integer, public :: max_connected_dets
-    type(optional_int), public :: n_samples
     real(DOUBLE), public :: eps_var
     real(DOUBLE), public :: eps_pt
     real(DOUBLE), public :: tol
@@ -38,9 +37,9 @@ module solver_module
     real(DOUBLE), public :: pt_st_energy
     real(DOUBLE), public :: pt_st_uncert
     real(DOUBLE), public :: max_abs_H
+    type(optional_int), public :: n_samples
     type(optional_double), public :: eps_pt_det
-    real(DOUBLE), allocatable, public :: coefs(:)
-    type(dets_type), public :: dets
+    type(wavefunction_type), pointer, public :: wf
     contains
       procedure, public :: solve
       procedure :: read_configs
@@ -136,8 +135,7 @@ module solver_module
     integer, intent(in) :: config_file_unit
     integer :: i
     real(DOUBLE) :: energy_prev, energy_cur
-    real(DOUBLE), allocatable :: tmp_coefs(:)
-    type(dets_type) :: dets_prev
+    type(wavefunction_type), pointer :: wf_prev
 
     call this%read_configs(config_file_unit)
 
@@ -148,20 +146,16 @@ module solver_module
     write (6, '(A)') '[VARIATION]'
     write (6, '(A, G0.10)') 'eps_var: ', this%eps_var
     energy_prev = 0
-    dets_prev = this%dets
+    wf_prev => new_wavefunction(this%wf)
     do i = 1, MAX_VAR_ITERATION
       write (6, '(A, I0)') 'Variation Iteration #', i
       call this%get_next_dets()
-      if (this%dets%n < 1.01 * dets_prev%n) then
-        this%dets = dets_prev
+      write (6, '(A, G0.10)') 'Number of dets: ', this%wf%n
+      if (this%wf%n < 1.01 * wf_prev%n) then
+        this%wf = wf_prev
         write (6, '(A)') 'Number of dets change within 1%. Variation finished.'
         exit
       end if
-      write (6, '(A, G0.10)') 'Number of dets: ', this%dets%n
-      allocate(tmp_coefs(this%dets%n))
-      tmp_coefs(:) = 0.0_DOUBLE
-      tmp_coefs(1:dets_prev%n) = this%coefs(1:dets_prev%n)
-      call move_alloc(tmp_coefs, this%coefs)
       call this%diagonalize(energy_cur)
       write (6, '(A, F0.10)') 'Energy: ', energy_cur
       write (6, '()')
@@ -172,7 +166,7 @@ module solver_module
         exit
       end if
       energy_prev = energy_cur
-      dets_prev = this%dets
+      wf_prev = this%wf
     end do
     write (6, '()')
 
@@ -193,7 +187,7 @@ module solver_module
 
   function get_hamiltonian_elem(this, det_pq, det_rs) result(H)
     class(solver_type), intent(inout) :: this
-    type(det_type), intent(inout) :: det_pq, det_rs
+    type(det_type), pointer, intent(inout) :: det_pq, det_rs
     real(DOUBLE) :: H
 
     stop 'get_hamiltonian_elem function has not been overloaded.'
@@ -205,31 +199,27 @@ module solver_module
     integer :: n_dets_old
     integer, allocatable :: indices_old(:)
     real(DOUBLE), allocatable :: tmp_coefs(:)
-    type(dets_type) :: connected_dets
-    type(dets_type) :: new_dets
+    type(det_type), pointer :: tmp_det
+    type(wavefunction_type), pointer :: connected_dets
+    type(wavefunction_type), pointer :: new_dets
 
-    n_dets_old = this%dets%n
-    call this%dets%dets(1)%print()
+    n_dets_old = this%wf%n
+    new_dets => new_wavefunction()
+    
     do i = 1, n_dets_old
-      call this%find_connected_dets(this%dets%dets(i), connected_dets, &
-          & this%eps_var / abs(this%coefs(i)))
-      call connected_dets%sort()
+      tmp_det => this%wf%get_det(i)
+      call this%find_connected_dets(tmp_det, connected_dets, &
+          & this%eps_var / abs(this%wf%coefs(i)))
+      call connected_dets%sort_dets()
       call new_dets%merge_sorted_dets(connected_dets)
     end do
-    call this%dets%merge_sorted_dets(new_dets, indices_old)
-    call this%dets%dets(1)%print()
-    allocate(tmp_coefs(this%dets%n))
-    tmp_coefs(:) = 0
-    do i = 1, n_dets_old
-      tmp_coefs(indices_old(i)) = this%coefs(i)
-    enddo
-    call move_alloc(tmp_coefs, this%coefs)
+    call this%wf%merge_sorted_dets(new_dets)
   end subroutine get_next_dets
 
   subroutine find_connected_dets(this, det, connected_dets, eps_min)
     class(solver_type), intent(inout) :: this
-    type(det_type), intent(inout) :: det
-    type(dets_type), intent(out) :: connected_dets
+    type(det_type), pointer, intent(inout) :: det
+    type(wavefunction_type), pointer, intent(out) :: connected_dets
     real(DOUBLE), intent(in) :: eps_min
 
     stop 'Default find_connected_dets has not been overloaded.'
@@ -245,16 +235,18 @@ module solver_module
     real(DOUBLE), allocatable :: lowest_eigenvalues(:)
     real(DOUBLE), allocatable :: initial_vectors(:, :)
     real(DOUBLE), allocatable :: final_vectors(:, :)
-    type(linked_list_type__int) :: H_indices
-    type(linked_list_type__double) :: H_values
+    type(linked_list_type__int), pointer :: H_indices
+    type(linked_list_type__double), pointer :: H_values
 
-    n = this%dets%n
+    n = this%wf%n
     n_up = this%n_up
     if (n == 1) then
       lowest_eigenvalue = this%HF_energy
       return
     end if
     allocate(n_nonzero_elems(n))
+    H_indices => new_linked_list__int()
+    H_values => new_linked_list__double()
     n_nonzero_elems = 0
     write (6, '(A)') 'Generating sparse hamiltonian...'
     call generate_sparse_hamiltonian()
@@ -262,13 +254,12 @@ module solver_module
     allocate(lowest_eigenvalues(1))
     allocate(initial_vectors(n, 1))
     allocate(final_vectors(n, 1))
-    initial_vectors(:, 1) = this%coefs(:)
-    print *, this%coefs
+    initial_vectors(:, 1) = this%wf%coefs(:)
     write (6, '(A)') 'Performing davidson diagonalization...'
     call davidson_sparse(n, 1, final_vectors, lowest_eigenvalues, &
         & H_indices, n_nonzero_elems, H_values, initial_vectors)
     lowest_eigenvalue = lowest_eigenvalues(1)
-    this%coefs(:) = final_vectors(:, 1)
+    this%wf%coefs(:) = final_vectors(:, 1)
 
     contains
 
@@ -285,16 +276,17 @@ module solver_module
       integer, allocatable :: order(:)
       real(DOUBLE) :: H
       real(DOUBLE), allocatable :: tmp_H_values(:)
-      type(spin_det_type) :: tmp_spin_det
-      type(spin_det_type), allocatable :: alpha_m1(:)
-      type(spin_det_type), allocatable :: beta(:)
-      type(det_type) :: tmp_det
+      type(spin_det_type), pointer :: tmp_spin_det
+      type(spin_det_type), pointer :: alpha_m1(:)
+      type(spin_det_type), pointer :: beta(:)
+      type(det_type), pointer :: tmp_det, tmp_det2
 
       ! Setup alpha_m1 and beta strings.
       allocate(beta(n))
       allocate(beta_idx(n))
+      allocate(tmp_det)
       do i = 1, n
-        tmp_det = this%dets%get_det(i)
+        tmp_det = this%wf%get_det(i)
         beta(i) = tmp_det%dn
         beta_idx(i) = i
       end do
@@ -303,11 +295,12 @@ module solver_module
       allocate(alpha_m1_idx(n * n_up))
       allocate(up_elec_orbitals(n_up))
       do i = 1, n
-        tmp_det = this%dets%get_det(i)
+        tmp_det = this%wf%get_det(i)
         call tmp_det%up%get_elec_orbitals(up_elec_orbitals, n_up)
         do j = 1, n_up
           alpha_m1(n_up * (i - 1) + j) = tmp_det%up
-          call alpha_m1(n_up * (i - 1) + j)%set_orbital(up_elec_orbitals(j), .false.)
+          call alpha_m1(n_up * (i - 1) + j)%set_orbital( &
+              & up_elec_orbitals(j), .false.)
         end do
         alpha_m1_idx(n_up * (i - 1) + 1: n_up * i) = i
       end do
@@ -317,9 +310,10 @@ module solver_module
       ! Generate H with the helper strings.
       allocate(tmp_H_indices(this%max_connected_dets))
       allocate(tmp_H_values(this%max_connected_dets))
+      if (associated(tmp_det)) deallocate(tmp_det)
       do i = 1, n
         ! Diagonal elem.
-        tmp_det = this%dets%dets(i)
+        tmp_det => this%wf%get_det(i)
         cnt = 1
         tmp_H_indices(cnt) = i
         tmp_H_values(cnt) = this%get_hamiltonian_elem(tmp_det, tmp_det)
@@ -330,7 +324,8 @@ module solver_module
         do while (tmp_det%dn == beta(ptr))
           j = beta_idx(ptr)
           if (j /= i) then
-            H = this%get_hamiltonian_elem(tmp_det, this%dets%dets(j))
+            tmp_det2 => this%wf%get_det(j)
+            H = this%get_hamiltonian_elem(tmp_det, tmp_det2)
             if (abs(H) > C%EPS) then
               cnt = cnt + 1
               tmp_H_indices(cnt) = j
@@ -344,7 +339,8 @@ module solver_module
         do while (tmp_det%dn == beta(ptr))
           j = beta_idx(ptr)
           if (j /= i) then
-            H = this%get_hamiltonian_elem(tmp_det, this%dets%dets(j))
+            tmp_det2 => this%wf%get_det(j)
+            H = this%get_hamiltonian_elem(tmp_det, tmp_det2)
             if (abs(H) > C%EPS) then
               cnt = cnt + 1
               tmp_H_indices(cnt) = j
@@ -356,7 +352,8 @@ module solver_module
         end do
 
         ! 2 dn or (1 up and 1 dn).
-        call tmp_det%up%get_elec_orbitals(up_elec_orbitals)
+        allocate(tmp_spin_det) 
+        call tmp_det%up%get_elec_orbitals(up_elec_orbitals, n_up)
         do ii = 1, n_up
           tmp_spin_det = tmp_det%up
           call tmp_spin_det%set_orbital(up_elec_orbitals(ii), .false.)
@@ -365,7 +362,8 @@ module solver_module
           do while (tmp_spin_det == alpha_m1(ptr))
             j = alpha_m1_idx(ptr)
             if (j /= i) then
-              H = this%get_hamiltonian_elem(tmp_det, this%dets%dets(j))
+              tmp_det2 => this%wf%get_det(j)
+              H = this%get_hamiltonian_elem(tmp_det, tmp_det2)
               if (abs(H) > C%EPS) then
                 cnt = cnt + 1
                 tmp_H_indices(cnt) = j
@@ -379,7 +377,8 @@ module solver_module
           do while (tmp_spin_det == alpha_m1(ptr))
             j = alpha_m1_idx(ptr)
             if (j /= i) then
-              H = this%get_hamiltonian_elem(tmp_det, this%dets%dets(j))
+              tmp_det2 => this%wf%get_det(j)
+              H = this%get_hamiltonian_elem(tmp_det, tmp_det2)
               if (abs(H) > C%EPS) then
                 cnt = cnt + 1
                 tmp_H_indices(cnt) = j
@@ -412,14 +411,15 @@ module solver_module
 
     subroutine sort_by_first_arg(n, arr, idx)
       integer, intent(in) :: n
-      type(spin_det_type), intent(inout) :: arr(:)
-      integer, allocatable, intent(inout) :: idx(:)
+      type(spin_det_type), pointer, intent(inout) :: arr(:)
+      integer, intent(inout) :: idx(:)
       integer :: gap
-      type(spin_det_type) :: tmp_elem
+      type(spin_det_type), pointer :: tmp_elem
       integer :: tmp_idx
       integer :: i, j
 
       gap = size(arr) / 2
+      tmp_elem => new_spin_det(arr(1))
       do while (gap > 0)
         do i = gap+1, size(arr)
           j = i
@@ -452,8 +452,8 @@ module solver_module
     ! Dummy
     integer,intent(in)        :: n,n_states
     integer,intent(in)   :: nelem_nonzero(:)
-    type(linked_list_type__int), intent(inout) :: matrix_indices
-    type(linked_list_type__double), intent(inout) :: matrix_values
+    type(linked_list_type__int), pointer, intent(inout) :: matrix_indices
+    type(linked_list_type__double), pointer, intent(inout) :: matrix_values
     real(DOUBLE),intent(out)      :: final_vector(:,:)
     real(DOUBLE),intent(out)      :: lowest_eigenvalues(:)
     real(DOUBLE),intent(in),optional :: initial_vector(:,:)
@@ -529,7 +529,6 @@ module solver_module
       do i = 1, n
         diag_elems(i) = matrix_values%get()
         do j = 1, n_nonzero_elems(i)
-          if (i == 1) print *, matrix_values%get()
           call matrix_values%next()
         enddo
       enddo
@@ -645,7 +644,7 @@ module solver_module
 
       call H_indices%begin()
       call H_values%begin()
-      do i = 1, this%dets%n
+      do i = 1, this%wf%n
         x = res(i)
         do j = 1, n_nonzero_elems(i)
           m = H_indices%get()
@@ -677,7 +676,7 @@ module solver_module
     total_energy = this%var_energy + this%pt_det_energy + this%pt_st_energy
 
     write (6, '(A, F0.10)') 'Variational Energy: ', this%var_energy
-    write (6, '(A, G0.10)') 'Number of variational dets: ', this%dets%n
+    write (6, '(A, G0.10)') 'Number of variational dets: ', this%wf%n
     write (6, '(A, F0.10)') 'Deterministic PT Energy: ', this%pt_det_energy
     write (6, '(A, F0.10, A, F0.10)') &
         & 'Stochastic PT Energy: ', this%pt_st_energy, ' +- ', this%pt_st_uncert

@@ -1,6 +1,6 @@
 [default]
-cflags = -c -cpp -O3 -C -fcheck=all -g
-lflags = -cpp -O3 -C -g
+cflags = -c -O3 -fcheck=all -g
+lflags = -O3 -g
 ext_libs = lapack blas
 fc = gfortran
 modsw = -J

@@ -2,12 +2,17 @@ module heg_solver_module
 
   use constants_module
   use det_module
-  use dets_module
+  use wavefunction_module
   use solver_module
   use types_module
   use utilities_module
 
   implicit none
+  
+  private
+
+  public :: heg_solver_type
+  public :: new_heg_solver
 
   type heg_data_type
     integer :: n_diff
@@ -37,7 +42,17 @@ module heg_solver_module
       procedure :: setup
   end type heg_solver_type
 
+  interface new_heg_solver
+    module procedure new_heg_solver_default
+  end interface new_heg_solver
+
   contains
+
+  function new_heg_solver_default() result(heg_solver)
+    type(heg_solver_type), pointer :: heg_solver
+
+    allocate(heg_solver)
+  end function new_heg_solver_default
 
   subroutine read_system_configs(this, config_file_unit)
     class(heg_solver_type), intent(inout) :: this
@@ -70,7 +85,7 @@ module heg_solver_module
     real(DOUBLE) :: density
     real(DOUBLE) :: HF_energy
     real(DOUBLE) :: k_unit
-    type(det_type) :: tmp_det
+    type(det_type), pointer :: tmp_det
 
     ! Basic quantities.
     density = 3.0_DOUBLE / (4.0_DOUBLE * C%PI * this%heg%r_s**3)
@@ -88,22 +103,21 @@ module heg_solver_module
     n_up = this%n_up
     n_dn = this%n_dn
     this%max_connected_dets = &
-        & 1 + util%n_combination(n_up, 2) + util%n_combination(n_orb - n_up, 2) &
-        & + util%n_combination(n_dn, 2) + util%n_combination(n_orb - n_dn, 2) &
+        & 1 + util%n_combinations(n_up, 2) + util%n_combinations(n_orb - n_up, 2) &
+        & + util%n_combinations(n_dn, 2) + util%n_combinations(n_orb - n_dn, 2) &
         & + n_up * n_dn * (n_orb - n_dn) * (n_orb - n_up)
 
     ! Setup HF determinant.
-    call this%dets%initialize(n_orb, 1)
-    allocate(this%coefs(1))
-    this%coefs(1) = 1.0_DOUBLE
-    call tmp_det%initialize(n_orb)
+    this%wf => new_wavefunction(1)
+    this%wf%coefs(1) = 1.0_DOUBLE
+    tmp_det => new_det(n_orb)
     do i = 1, this%n_up
       call tmp_det%up%set_orbital(i, .true.)
     end do
     do i = 1, this%n_dn
       call tmp_det%dn%set_orbital(i, .true.)
     end do
-    call this%dets%append(tmp_det)
+    call this%wf%append_det(tmp_det)
     HF_energy = this%get_hamiltonian_elem(tmp_det, tmp_det)
     write (6, '(A, F0.10)') 'HF energy: ', HF_energy
     this%HF_energy = HF_energy
@@ -154,7 +168,7 @@ module heg_solver_module
 
   function get_hamiltonian_elem(this, det_pq, det_rs) result(H)
     class(heg_solver_type), intent(inout) :: this
-    type(det_type), intent(inout) :: det_pq, det_rs
+    type(det_type), pointer, intent(inout) :: det_pq, det_rs
     real(DOUBLE) :: H
     logical :: k_p_set, k_q_set, k_s_set
     integer :: gamma_exp
@@ -167,7 +181,7 @@ module heg_solver_module
     integer :: orb_id
     integer, allocatable :: occ_pq_up(:), occ_pq_dn(:), occ_rs_up(:), occ_rs_dn(:)
     integer, allocatable :: eor_up_set_bits(:), eor_dn_set_bits(:)
-    type(det_type) :: det_eor
+    type(det_type), pointer :: det_eor
     real(DOUBLE) :: k_unit
     real(DOUBLE) :: one_over_pi_l
 
@@ -209,7 +223,7 @@ module heg_solver_module
       end do
     else
       ! Off-diagonal elements.
-      call det_eor%from_eor(det_pq, det_rs)
+      det_eor => det_pq .eor. det_rs
       n_eor_up = det_eor%up%get_n_elec()
       n_eor_dn = det_eor%dn%get_n_elec()
       if (n_eor_up + n_eor_dn /= 4) then
@@ -218,6 +232,8 @@ module heg_solver_module
       end if
       call det_eor%up%get_elec_orbitals(eor_up_set_bits, n_eor_up)
       call det_eor%dn%get_elec_orbitals(eor_dn_set_bits, n_eor_dn)
+      call det_eor%clean()
+      deallocate(det_eor)
       k_change = 0.0_DOUBLE
       k_p_set = .false.
       k_q_set = .false.
@@ -447,8 +463,8 @@ module heg_solver_module
     class(heg_solver_type), intent(inout) :: this
     integer, intent(in) :: p, q, r, s
     real(DOUBLE) :: abs_H
-    type(det_type) :: zero_det
-    type(det_type) :: det_pq, det_rs
+    type(det_type), pointer :: zero_det
+    type(det_type), pointer :: det_pq, det_rs
     integer :: n_orb
 
     if (p == q .or. r == s .or. p == r .or. q == s .or. p == s .or. q == r) then
@@ -456,9 +472,9 @@ module heg_solver_module
       return
     end if
     n_orb = this%n_orb
-    call zero_det%initialize(n_orb)
-    det_pq = zero_det
-    det_rs = zero_det
+    zero_det => new_det(n_orb)
+    det_pq => new_det(zero_det)
+    det_rs => new_det(zero_det)
     if (p <= n_orb .and. q <= n_orb) then
       call det_pq%up%set_orbital(p, .true.)
       call det_pq%up%set_orbital(q, .true.)
@@ -498,7 +514,7 @@ module heg_solver_module
   end function find_orb_id
 
   function get_gamma_exp(spin_det, occ, eor_set_bits, n_eor_set_bits) result(res)
-    type(spin_det_type), intent(inout) :: spin_det
+    type(spin_det_type), pointer, intent(inout) :: spin_det
     integer, intent(in) :: occ(:)
     integer, intent(in) :: eor_set_bits(:)
     integer, intent(in) :: n_eor_set_bits
@@ -523,8 +539,8 @@ module heg_solver_module
 
   subroutine find_connected_dets(this, det, connected_dets, eps_min)
     class(heg_solver_type), intent(inout) :: this
-    type(det_type), intent(inout) :: det
-    type(dets_type), intent(out) :: connected_dets
+    type(det_type), pointer, intent(inout) :: det
+    type(wavefunction_type), pointer, intent(out) :: connected_dets
     real(DOUBLE), intent(in) :: eps_min
 
     integer :: n_elec
@@ -538,14 +554,14 @@ module heg_solver_module
     type(INT_PAIR), allocatable :: rs_pairs(:)
 
     if (this%max_abs_H < eps_min) then
-      connected_dets%n = 0
+      connected_dets => new_wavefunction(1)
       return
     end if
     n_elec = this%n_elec
     n_up = this%n_up
     n_dn = this%n_dn
     n_orb = this%n_orb
-    call connected_dets%initialize(n_orb, this%max_connected_dets)
+    connected_dets => new_wavefunction(this%max_connected_dets)
     call get_pq_pairs(pq_pairs, n_pq_pairs)
     allocate(rs_pairs(this%max_n_rs_pairs))
 
@@ -618,6 +634,7 @@ module heg_solver_module
           p2 = q - n_orb
           q2 = p + n_orb
         end if
+
         n_rs_pairs = 0
         do j = 1, this%heg%n_diff**3
           if (p2 <= n_orb .and. q2 <= n_orb) then
@@ -665,9 +682,9 @@ module heg_solver_module
 
       subroutine process_pqrs(p, q, r, s, connected_dets)
         integer, intent(in) :: p, q, r, s
-        type(dets_type), intent(inout) :: connected_dets
+        type(wavefunction_type), pointer, intent(inout) :: connected_dets
         integer :: n_orb
-        type(det_type) :: new_det
+        type(det_type), pointer :: tmp_det
 
         n_orb = this%n_orb
         if (r > n_orb) then
@@ -680,28 +697,29 @@ module heg_solver_module
         else
           if (det%up%get_orbital(s)) return
         end if
-        new_det = det
+
+        tmp_det => new_det(det)
         if (p <= n_orb) then
-          call new_det%up%set_orbital(p, .false.)
+          call tmp_det%up%set_orbital(p, .false.)
         else
-          call new_det%dn%set_orbital(p - n_orb, .false.)
+          call tmp_det%dn%set_orbital(p - n_orb, .false.)
         end if
         if (q <= n_orb) then
-          call new_det%up%set_orbital(q, .false.)
+          call tmp_det%up%set_orbital(q, .false.)
         else
-          call new_det%dn%set_orbital(q - n_orb, .false.)
+          call tmp_det%dn%set_orbital(q - n_orb, .false.)
         end if
         if (r <= n_orb) then
-          call new_det%up%set_orbital(r, .true.)
+          call tmp_det%up%set_orbital(r, .true.)
         else
-          call new_det%dn%set_orbital(r - n_orb, .true.)
+          call tmp_det%dn%set_orbital(r - n_orb, .true.)
         end if
         if (s <= n_orb) then
-          call new_det%up%set_orbital(s, .true.)
+          call tmp_det%up%set_orbital(s, .true.)
         else
-          call new_det%dn%set_orbital(s - n_orb, .true.)
+          call tmp_det%dn%set_orbital(s - n_orb, .true.)
         end if
-        call connected_dets%append(new_det)
+        call connected_dets%append_det(tmp_det)
       end subroutine
 
   end subroutine find_connected_dets

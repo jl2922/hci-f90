@@ -8,6 +8,7 @@ module solver_controller_module
   private
 
   public :: solver_controller_type
+  public :: new_solver_controller
 
   integer, parameter :: SYSTEM_NAME_LENGTH = 128
 
@@ -20,7 +21,17 @@ module solver_controller_module
       procedure :: get_system_name
   end type solver_controller_type
 
+  interface new_solver_controller
+    module procedure new_solver_controller_default
+  end interface
+
   contains
+
+  function new_solver_controller_default() result(solver_controller)
+    type(solver_controller_type), pointer :: solver_controller
+
+    allocate(solver_controller)
+  end function new_solver_controller_default
 
   subroutine start(this)
     class(solver_controller_type), intent(inout) :: this
@@ -29,12 +40,12 @@ module solver_controller_module
 
     config_file_unit = this%create_config_file()
     system_name = this%get_system_name(config_file_unit)
-
     write (6, '(A, A)') 'System: ', system_name
     write (6, '()')
+
     select case (system_name)
     case ('heg')
-      allocate(this%heg_solver)
+      this%heg_solver => new_heg_solver()
       call this%heg_solver%solve(config_file_unit)
     case default
       stop 'Unrecognized system'

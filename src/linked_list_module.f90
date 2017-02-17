@@ -6,9 +6,10 @@ module linked_list_module__int
   private
 
   public :: linked_list_type__int
+  public :: new_linked_list__int
 
-  ! integer, parameter :: TRUNK_SIZE = 16384 ! Fits into the CPU L2 cache we have.
-  integer, parameter :: TRUNK_SIZE = 4 ! For testing.
+  integer, parameter :: TRUNK_SIZE = 65536 ! Fits into the CPU L2 cache we have.
+  ! integer, parameter :: TRUNK_SIZE = 1024 ! For testing.
 
   type :: node_type
     private
@@ -31,7 +32,17 @@ module linked_list_module__int
       procedure, public :: clear
   end type linked_list_type__int
 
+  interface new_linked_list__int
+    module procedure new_linked_list__int_default
+  end interface
+
   contains
+
+  function new_linked_list__int_default() result(list)
+    type(linked_list_type__int), pointer :: list
+
+    allocate(list)
+  end function new_linked_list__int_default
 
   subroutine append(this, item)
     class(linked_list_type__int), intent(inout) :: this
@@ -109,9 +120,10 @@ module linked_list_module__double
   private
 
   public :: linked_list_type__double
+  public :: new_linked_list__double
 
-  ! integer, parameter :: TRUNK_SIZE = 16384 ! Fits into the CPU L2 cache we have.
-  integer, parameter :: TRUNK_SIZE = 4 ! For testing.
+  integer, parameter :: TRUNK_SIZE = 65536 ! Fits into the CPU L2 cache we have.
+  ! integer, parameter :: TRUNK_SIZE = 1024 ! For testing.
 
   type :: node_type
     private
@@ -134,7 +146,17 @@ module linked_list_module__double
       procedure, public :: clear
   end type linked_list_type__double
 
+  interface new_linked_list__double
+    module procedure new_linked_list__double_default
+  end interface
+
   contains
+
+  function new_linked_list__double_default() result(list)
+    type(linked_list_type__double), pointer :: list
+
+    allocate(list)
+  end function new_linked_list__double_default
 
   subroutine append(this, item)
     class(linked_list_type__double), intent(inout) :: this

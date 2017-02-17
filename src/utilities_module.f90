@@ -15,7 +15,7 @@ module utilities_module
       procedure, private :: arg_sort_int, arg_sort_double
       generic :: binary_search => binary_search_spin_det
       procedure, private :: binary_search_spin_det
-      procedure :: n_combination
+      procedure :: n_combinations
   end type utilities_type
   type(utilities_type) :: util
 
@@ -159,10 +159,11 @@ module utilities_module
 
   function binary_search_spin_det(this, val, arr) result(k)
     class(utilities_type), intent(in) :: this
-    type(spin_det_type), intent(in) :: val
-    type(spin_det_type), allocatable, intent(in) :: arr(:)
+    type(spin_det_type), pointer, intent(in) :: val
+    type(spin_det_type), pointer, intent(in) :: arr(:)
     integer :: k
     integer :: left, right, mid
+
     left = 1
     right = size(arr)
     do while (left < right)
@@ -179,7 +180,7 @@ module utilities_module
     k = left
   end function binary_search_spin_det
 
-  function n_combination(this, n, k) result(res)
+  function n_combinations(this, n, k) result(res)
     class(utilities_type), intent(in) :: this
     integer, intent(in) :: n, k
     integer :: res
@@ -191,6 +192,6 @@ module utilities_module
     do i = k, 1, -1
       res = res / i
     end do
-  end function n_combination
+  end function n_combinations
 
 end module utilities_module

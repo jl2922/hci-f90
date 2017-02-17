@@ -1,0 +1,405 @@
+<PDB 3.0>
+lang fortran
+
+so#0 ./src/utilities_module.f90
+
+ro#16 UTILITIES_MODULE::ARG_SORT_DOUBLE
+rsig ty#28
+rstart so#0 43 5
+rloc so#0 35 3
+rpos so#0 35 3 so#0 35 3 so#0 96 32 so#0 96 32
+rlink f90
+rkind fext
+rstmt st#0 fif so#0 43 5 so#0 45 10 st#2 st#1 
+rstmt st#1 fallocate so#0 44 7 so#0 44 24 NA NA 
+rstmt st#2 fdo so#0 46 5 so#0 48 10 st#4 st#3 
+rstmt st#3 fassign so#0 47 7 so#0 47 18 NA NA 
+rstmt st#4 fallocate so#0 49 5 so#0 49 26 st#5 NA 
+rstmt st#5 fcall so#0 51 5 so#0 51 20 st#6 NA 
+rstmt st#6 freturn so#0 53 5 so#0 53 12 NA NA 
+rbody st#0
+
+ro#17 UTILITIES_MODULE::ARG_SORT_INT
+rsig ty#16
+rstart so#0 105 5
+rloc so#0 97 3
+rpos so#0 97 3 so#0 97 3 so#0 158 29 so#0 158 29
+rlink f90
+rkind fext
+rstmt st#0 fif so#0 105 5 so#0 107 10 st#2 st#1 
+rstmt st#1 fallocate so#0 106 7 so#0 106 24 NA NA 
+rstmt st#2 fdo so#0 108 5 so#0 110 10 st#4 st#3 
+rstmt st#3 fassign so#0 109 7 so#0 109 18 NA NA 
+rstmt st#4 fallocate so#0 111 5 so#0 111 26 st#5 NA 
+rstmt st#5 fcall so#0 113 5 so#0 113 20 st#6 NA 
+rstmt st#6 freturn so#0 115 5 so#0 115 12 NA NA 
+rbody st#0
+
+ro#18 UTILITIES_MODULE::BINARY_SEARCH_SPIN_DET
+rsig ty#5
+rstart so#0 167 5
+rloc so#0 160 3
+rpos so#0 160 3 so#0 160 3 so#0 181 37 so#0 181 37
+rlink f90
+rkind fext
+rstmt st#0 fassign so#0 167 5 so#0 167 12 st#1 NA 
+rstmt st#1 fassign so#0 168 5 so#0 168 21 st#2 NA 
+rstmt st#2 fdo so#0 169 5 so#0 179 10 st#10 st#3 
+rstmt st#3 fassign so#0 170 7 so#0 170 30 st#4 NA 
+rstmt st#4 fif so#0 171 7 so#0 178 12 NA st#5 st#7 
+rstmt st#5 fassign so#0 172 9 so#0 172 15 st#6 NA 
+rstmt st#6 freturn so#0 173 9 so#0 173 14 NA NA 
+rstmt st#7 fif so#0 174 7 so#0 178 12 NA st#8 st#9 
+rstmt st#8 fassign so#0 175 9 so#0 175 22 NA NA 
+rstmt st#9 fassign so#0 177 9 so#0 177 23 NA NA 
+rstmt st#10 fassign so#0 180 5 so#0 180 12 st#11 NA 
+rstmt st#11 freturn so#0 181 3 so#0 181 37 NA NA 
+rbody st#0
+
+ro#19 UTILITIES_MODULE::GET_FREE_UNIT
+rsig ty#40
+rstart so#0 27 5
+rloc so#0 24 3
+rpos so#0 24 3 so#0 24 3 so#0 33 28 so#0 33 28
+rlink f90
+rkind fext
+rstmt st#0 fdo so#0 27 5 so#0 32 10 st#4 st#1 
+rstmt st#1 fio so#0 28 7 so#0 28 45 st#2 NA 
+rstmt st#2 fif so#0 29 7 so#0 31 12 NA st#3 
+rstmt st#3 fexit so#0 30 9 so#0 30 12 NA NA st#0 
+rstmt st#4 freturn so#0 33 3 so#0 33 28 NA NA 
+rbody st#0
+
+ro#22 UTILITIES_MODULE::N_COMBINATIONS
+rsig ty#0
+rstart so#0 188 5
+rloc so#0 183 3
+rpos so#0 183 3 so#0 183 3 so#0 195 29 so#0 195 29
+rlink f90
+rkind fext
+rstmt st#0 fassign so#0 188 5 so#0 188 11 st#1 NA 
+rstmt st#1 fdo so#0 189 5 so#0 191 10 st#3 st#2 
+rstmt st#2 fassign so#0 190 7 so#0 190 19 NA NA 
+rstmt st#3 fdo so#0 192 5 so#0 194 10 st#5 st#4 
+rstmt st#4 fassign so#0 193 7 so#0 193 19 NA NA 
+rstmt st#5 freturn so#0 195 3 so#0 195 29 NA NA 
+rbody st#0
+
+ro#28 UTILITIES_MODULE::ARG_SORT_INT::RECUR
+rsig ty#24
+rstart so#0 124 7
+rloc so#0 117 5
+rpos so#0 117 5 so#0 117 5 so#0 157 24 so#0 157 24
+rlink f90
+rkind fext
+rstmt st#0 fsingle_if so#0 124 7 so#0 124 31 st#2 st#1 
+rstmt st#1 freturn so#0 124 26 so#0 124 31 NA NA 
+rstmt st#2 fif so#0 125 7 so#0 132 12 st#8 st#3 
+rstmt st#3 fif so#0 126 9 so#0 130 14 st#7 st#4 
+rstmt st#4 fassign so#0 127 11 so#0 127 28 st#5 NA 
+rstmt st#5 fassign so#0 128 11 so#0 128 36 st#6 NA 
+rstmt st#6 fassign so#0 129 11 so#0 129 27 NA NA 
+rstmt st#7 freturn so#0 131 9 so#0 131 14 NA NA 
+rstmt st#8 fassign so#0 134 7 so#0 134 30 st#9 NA 
+rstmt st#9 fcall so#0 135 7 so#0 135 27 st#10 NA 
+rstmt st#10 fcall so#0 136 7 so#0 136 32 st#11 NA 
+rstmt st#11 fassign so#0 139 7 so#0 139 45 st#12 NA 
+rstmt st#12 fassign so#0 140 7 so#0 140 17 st#13 NA 
+rstmt st#13 fassign so#0 141 7 so#0 141 20 st#14 NA 
+rstmt st#14 fdo so#0 142 7 so#0 153 12 st#22 st#15 
+rstmt st#15 fif so#0 143 9 so#0 149 14 st#20 st#16 st#18 
+rstmt st#16 fassign so#0 144 11 so#0 144 38 st#17 NA 
+rstmt st#17 fassign so#0 145 11 so#0 145 25 NA NA 
+rstmt st#18 fassign so#0 147 11 so#0 147 34 st#19 NA 
+rstmt st#19 fassign so#0 148 11 so#0 148 25 NA NA 
+rstmt st#20 fif so#0 150 9 so#0 152 14 NA st#21 
+rstmt st#21 fexit so#0 151 11 so#0 151 14 NA NA st#14 
+rstmt st#22 fif so#0 154 7 so#0 156 12 st#24 st#23 
+rstmt st#23 fassign so#0 155 9 so#0 155 52 NA NA 
+rstmt st#24 freturn so#0 157 5 so#0 157 24 NA NA 
+rbody st#0
+
+ro#29 UTILITIES_MODULE::ARG_SORT_DOUBLE::RECUR
+rsig ty#36
+rstart so#0 62 7
+rloc so#0 55 5
+rpos so#0 55 5 so#0 55 5 so#0 95 24 so#0 95 24
+rlink f90
+rkind fext
+rstmt st#0 fsingle_if so#0 62 7 so#0 62 31 st#2 st#1 
+rstmt st#1 freturn so#0 62 26 so#0 62 31 NA NA 
+rstmt st#2 fif so#0 63 7 so#0 70 12 st#8 st#3 
+rstmt st#3 fif so#0 64 9 so#0 68 14 st#7 st#4 
+rstmt st#4 fassign so#0 65 11 so#0 65 28 st#5 NA 
+rstmt st#5 fassign so#0 66 11 so#0 66 36 st#6 NA 
+rstmt st#6 fassign so#0 67 11 so#0 67 27 NA NA 
+rstmt st#7 freturn so#0 69 9 so#0 69 14 NA NA 
+rstmt st#8 fassign so#0 72 7 so#0 72 30 st#9 NA 
+rstmt st#9 fcall so#0 73 7 so#0 73 27 st#10 NA 
+rstmt st#10 fcall so#0 74 7 so#0 74 32 st#11 NA 
+rstmt st#11 fassign so#0 77 7 so#0 77 45 st#12 NA 
+rstmt st#12 fassign so#0 78 7 so#0 78 17 st#13 NA 
+rstmt st#13 fassign so#0 79 7 so#0 79 20 st#14 NA 
+rstmt st#14 fdo so#0 80 7 so#0 91 12 st#22 st#15 
+rstmt st#15 fif so#0 81 9 so#0 87 14 st#20 st#16 st#18 
+rstmt st#16 fassign so#0 82 11 so#0 82 38 st#17 NA 
+rstmt st#17 fassign so#0 83 11 so#0 83 25 NA NA 
+rstmt st#18 fassign so#0 85 11 so#0 85 34 st#19 NA 
+rstmt st#19 fassign so#0 86 11 so#0 86 25 NA NA 
+rstmt st#20 fif so#0 88 9 so#0 90 14 NA st#21 
+rstmt st#21 fexit so#0 89 11 so#0 89 14 NA NA st#14 
+rstmt st#22 fif so#0 92 7 so#0 94 12 st#24 st#23 
+rstmt st#23 fassign so#0 93 9 so#0 93 52 NA NA 
+rstmt st#24 freturn so#0 95 5 so#0 95 24 NA NA 
+rbody st#0
+
+ty#1 int32
+yacs priv
+ykind fint
+yikind int
+
+ty#2 sometype
+yacs priv
+ykind NA
+yikind NA
+
+ty#3 int32
+yacs priv
+ykind fint
+yikind int
+
+ty#4 int32
+yacs priv
+ykind fint
+yikind int
+
+ty#0 int32 (this, n, k)
+yacs priv
+ykind ffunc
+yrett ty#1
+yargt ty#2 this
+yargt ty#3 n
+yargt ty#4 k
+
+ty#6 int32
+yacs priv
+ykind fint
+yikind int
+
+ty#7 sometype
+yacs priv
+ykind NA
+yikind NA
+
+ty#11 int64
+yacs priv
+ykind fint
+yikind ulong
+
+ty#10 int64[]
+yacs priv
+ykind farray
+yelem ty#11
+yshape deferred
+yrank 1
+
+ty#13 int32
+yacs priv
+ykind fint
+yikind int
+
+ty#12 int32[]
+yacs priv
+ykind farray
+yelem ty#13
+yshape deferred
+yrank 1
+
+gr#9 spin_det_type
+gkind fderived
+gmem trunks
+gmacs priv
+gmkind var
+gmtype ty#10
+gmem orbitals_cache
+gmacs priv
+gmkind var
+gmtype ty#12
+
+ty#8 *spin_det_type
+yacs priv
+ykind fptr
+yptr gr#9
+
+ty#15 spin_det_type[]
+yacs priv
+ykind farray
+yelem gr#9
+yshape deferred
+yrank 1
+
+ty#14 *spin_det_type[]
+yacs priv
+ykind fptr
+yptr ty#15
+
+ty#5 int32 (this, val, arr)
+yacs priv
+ykind ffunc
+yrett ty#6
+yargt ty#7 this
+yargt ty#8 val
+yargt ty#14 arr
+
+ty#17 void
+yacs priv
+ykind fvoid
+
+ty#18 sometype
+yacs priv
+ykind NA
+yikind NA
+
+ty#20 int32
+yacs priv
+ykind fint
+yikind int
+
+ty#19 int32[]
+yacs priv
+ykind farray
+yelem ty#20
+yshape asmdshape
+yrank 1
+
+ty#22 int32
+yacs priv
+ykind fint
+yikind int
+
+ty#21 int32[]
+yacs priv
+ykind farray
+yelem ty#22
+yshape deferred
+yrank 1
+
+ty#23 int32
+yacs priv
+ykind fint
+yikind int
+
+ty#16 void (this, arr, order, n)
+yacs priv
+ykind ffunc
+yrett ty#17
+yargt ty#18 this
+yargt ty#19 arr
+yargt ty#21 order
+yargt ty#23 n
+
+ty#25 void
+yacs priv
+ykind fvoid
+
+ty#26 int32
+yacs priv
+ykind fint
+yikind int
+
+ty#27 int32
+yacs priv
+ykind fint
+yikind int
+
+ty#24 void (left, right)
+yacs priv
+ykind ffunc
+yrett ty#25
+yargt ty#26 left
+yargt ty#27 right
+
+ty#29 void
+yacs priv
+ykind fvoid
+
+ty#30 sometype
+yacs priv
+ykind NA
+yikind NA
+
+ty#32 double
+yacs priv
+ykind ffloat
+yfkind dbl
+
+ty#31 double[]
+yacs priv
+ykind farray
+yelem ty#32
+yshape asmdshape
+yrank 1
+
+ty#34 int32
+yacs priv
+ykind fint
+yikind int
+
+ty#33 int32[]
+yacs priv
+ykind farray
+yelem ty#34
+yshape deferred
+yrank 1
+
+ty#35 int32
+yacs priv
+ykind fint
+yikind int
+
+ty#28 void (this, arr, order, n)
+yacs priv
+ykind ffunc
+yrett ty#29
+yargt ty#30 this
+yargt ty#31 arr
+yargt ty#33 order
+yargt ty#35 n
+
+ty#37 void
+yacs priv
+ykind fvoid
+
+ty#38 int32
+yacs priv
+ykind fint
+yikind int
+
+ty#39 int32
+yacs priv
+ykind fint
+yikind int
+
+ty#36 void (left, right)
+yacs priv
+ykind ffunc
+yrett ty#37
+yargt ty#38 left
+yargt ty#39 right
+
+ty#41 int32
+yacs priv
+ykind fint
+yikind int
+
+ty#42 sometype
+yacs priv
+ykind NA
+yikind NA
+
+ty#40 int32 (this)
+yacs priv
+ykind ffunc
+yrett ty#41
+yargt ty#42 this
+
