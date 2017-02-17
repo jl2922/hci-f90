@@ -119,6 +119,9 @@ module heg_solver_module
     end do
     call this%wf%append_det(tmp_det)
     HF_energy = this%get_hamiltonian_elem(tmp_det, tmp_det)
+    call tmp_det%clean()
+    deallocate(tmp_det)
+    nullify(tmp_det)
     write (6, '(A, F0.10)') 'HF energy: ', HF_energy
     this%HF_energy = HF_energy
 
@@ -227,13 +230,13 @@ module heg_solver_module
       n_eor_up = det_eor%up%get_n_elec()
       n_eor_dn = det_eor%dn%get_n_elec()
       if (n_eor_up + n_eor_dn /= 4) then
-        H = 0.0_DOUBLE
+        H = 0.0_DOUBLE ! Not double excitation.
+        call delete(det_eor)
         return
       end if
       call det_eor%up%get_elec_orbitals(eor_up_set_bits, n_eor_up)
       call det_eor%dn%get_elec_orbitals(eor_dn_set_bits, n_eor_dn)
-      call det_eor%clean()
-      deallocate(det_eor)
+      call delete(det_eor)
       k_change = 0.0_DOUBLE
       k_p_set = .false.
       k_q_set = .false.
@@ -475,6 +478,7 @@ module heg_solver_module
     zero_det => new_det(n_orb)
     det_pq => new_det(zero_det)
     det_rs => new_det(zero_det)
+    call delete(zero_det)
     if (p <= n_orb .and. q <= n_orb) then
       call det_pq%up%set_orbital(p, .true.)
       call det_pq%up%set_orbital(q, .true.)
@@ -492,6 +496,8 @@ module heg_solver_module
       call det_rs%dn%set_orbital(s - n_orb, .true.)
     end if
     abs_H = abs(this%get_hamiltonian_elem(det_pq, det_rs))
+    call delete(det_pq)
+    call delete(det_rs)
   end function hamiltonian_abs_by_pqrs
 
   function find_orb_id(this, k_vector) result(orb_id)
@@ -720,6 +726,8 @@ module heg_solver_module
           call tmp_det%dn%set_orbital(s - n_orb, .true.)
         end if
         call connected_dets%append_det(tmp_det)
+        call tmp_det%clean()
+        deallocate(tmp_det)
       end subroutine
 
   end subroutine find_connected_dets

@@ -10,6 +10,7 @@ module det_module
 
   public :: det_type
   public :: new_det
+  public :: delete
   public :: assignment(=)
   public :: operator(==)
   public :: operator(<)
@@ -18,7 +19,8 @@ module det_module
 
   type det_type
     private
-    type(spin_det_type), pointer, public :: up, dn
+    type(spin_det_type), pointer, public :: up => null()
+    type(spin_det_type), pointer, public :: dn => null()
     ! integer, pointer, public :: elec_orbitals(:)
     contains
       procedure, public :: clean
@@ -31,8 +33,13 @@ module det_module
     module procedure new_det_by_n_orb
   end interface new_det
 
+  interface delete
+    module procedure delete_det
+  end interface delete
+
   interface assignment(=)
     module procedure assign_det
+    module procedure assign_det_from_arr
   end interface
 
   interface operator(==)
@@ -74,6 +81,13 @@ module det_module
     det%dn => new_spin_det(det_size)
   end function new_det_by_n_orb
 
+  subroutine delete_det(det)
+    type(det_type), pointer :: det
+    call det%clean()
+    deallocate(det)
+    nullify(det)
+  end subroutine delete_det
+
   subroutine clean(this)
     class(det_type), intent(inout) :: this
 
@@ -81,6 +95,8 @@ module det_module
     call this%dn%clean()
     deallocate(this%up)
     deallocate(this%dn)
+    nullify(this%up)
+    nullify(this%dn)
   end subroutine clean
 
   subroutine resize(this, det_size)
@@ -102,9 +118,21 @@ module det_module
     class(det_type), pointer, intent(in) :: src
     class(det_type), pointer, intent(out) :: dest
 
+    print *, 'ass det'
+    stop
     dest%up = src%up
     dest%dn = src%dn
   end subroutine assign_det
+
+  subroutine assign_det_from_arr(dest, src)
+    class(det_type), pointer, intent(in) :: src(:)
+    class(det_type), pointer, intent(out) :: dest
+
+    print *, 'fromarr'
+    stop
+    dest%up = src(1)%up
+    dest%dn = src(1)%dn
+  end subroutine assign_det_from_arr
 
   function equal_det(left, right) result(is_equal)
     class(det_type), pointer, intent(in) :: left, right

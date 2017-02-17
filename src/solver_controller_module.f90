@@ -14,7 +14,7 @@ module solver_controller_module
 
   type solver_controller_type
     private
-    type(heg_solver_type), pointer :: heg_solver
+    type(heg_solver_type), pointer :: heg_solver => null()
     contains
       procedure, public :: start
       procedure :: create_config_file

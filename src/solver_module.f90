@@ -39,7 +39,7 @@ module solver_module
     real(DOUBLE), public :: max_abs_H
     type(optional_int), public :: n_samples
     type(optional_double), public :: eps_pt_det
-    type(wavefunction_type), pointer, public :: wf
+    type(wavefunction_type), pointer, public :: wf => null()
     contains
       procedure, public :: solve
       procedure :: read_configs
@@ -150,6 +150,7 @@ module solver_module
     do i = 1, MAX_VAR_ITERATION
       write (6, '(A, I0)') 'Variation Iteration #', i
       call this%get_next_dets()
+
       write (6, '(A, G0.10)') 'Number of dets: ', this%wf%n
       if (this%wf%n < 1.01 * wf_prev%n) then
         this%wf = wf_prev
@@ -168,6 +169,7 @@ module solver_module
       energy_prev = energy_cur
       wf_prev = this%wf
     end do
+    stop
     write (6, '()')
 
     write (6, '(A)') '[PERTURBATION]'
@@ -282,20 +284,20 @@ module solver_module
       type(det_type), pointer :: tmp_det, tmp_det2
 
       ! Setup alpha_m1 and beta strings.
-      allocate(beta(n))
+      beta => new_spin_det_arr(n)
       allocate(beta_idx(n))
-      allocate(tmp_det)
       do i = 1, n
-        tmp_det = this%wf%get_det(i)
+        tmp_det => this%wf%get_det(i)
         beta(i) = tmp_det%dn
         beta_idx(i) = i
       end do
+      nullify(tmp_det)
       call sort_by_first_arg(n, beta, beta_idx)
-      allocate(alpha_m1(n * n_up))
+      alpha_m1 => new_spin_det_arr(n * n_up)
       allocate(alpha_m1_idx(n * n_up))
       allocate(up_elec_orbitals(n_up))
       do i = 1, n
-        tmp_det = this%wf%get_det(i)
+        tmp_det => this%wf%get_det(i)
         call tmp_det%up%get_elec_orbitals(up_elec_orbitals, n_up)
         do j = 1, n_up
           alpha_m1(n_up * (i - 1) + j) = tmp_det%up
@@ -304,13 +306,13 @@ module solver_module
         end do
         alpha_m1_idx(n_up * (i - 1) + 1: n_up * i) = i
       end do
+      nullify(tmp_det)
       call sort_by_first_arg(n, alpha_m1, alpha_m1_idx)
       write (6, '(A)') 'alpha and beta strings created.'
 
       ! Generate H with the helper strings.
       allocate(tmp_H_indices(this%max_connected_dets))
       allocate(tmp_H_values(this%max_connected_dets))
-      if (associated(tmp_det)) deallocate(tmp_det)
       do i = 1, n
         ! Diagonal elem.
         tmp_det => this%wf%get_det(i)
@@ -352,10 +354,9 @@ module solver_module
         end do
 
         ! 2 dn or (1 up and 1 dn).
-        allocate(tmp_spin_det) 
+        tmp_spin_det => new_spin_det(tmp_det%up)
         call tmp_det%up%get_elec_orbitals(up_elec_orbitals, n_up)
         do ii = 1, n_up
-          tmp_spin_det = tmp_det%up
           call tmp_spin_det%set_orbital(up_elec_orbitals(ii), .false.)
           k = util%binary_search(tmp_spin_det, alpha_m1)
           ptr = k
@@ -388,7 +389,9 @@ module solver_module
             ptr = ptr + 1
             if (ptr > n * n_up) exit
           end do
+          call tmp_spin_det%set_orbital(up_elec_orbitals(ii), .true.)
         end do
+        call delete(tmp_spin_det)
 
         ! Add to H.
         call util%arg_sort(tmp_H_indices, order, cnt)
@@ -406,6 +409,8 @@ module solver_module
         end do
         n_nonzero_elems(i) = distinct_cnt
       end do
+      call delete(beta)
+      call delete(alpha_m1)
       write (6, '(A, G0.10)') 'Nonzero elems in H: ', sum(n_nonzero_elems)
     end subroutine generate_sparse_hamiltonian
 
@@ -440,6 +445,9 @@ module solver_module
           gap = gap * 5 / 11
         end if
       end do
+      call tmp_elem%clean()
+      deallocate(tmp_elem)
+      nullify(tmp_elem)
     end subroutine sort_by_first_arg
 
 !=============================================================================== 

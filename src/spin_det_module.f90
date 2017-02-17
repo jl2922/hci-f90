@@ -9,11 +9,15 @@ module spin_det_module
 
   public :: spin_det_type
   public :: new_spin_det
+  public :: new_spin_det_arr
+  public :: delete
   public :: assignment(=)
   public :: operator(==)
   public :: operator(<)
   public :: operator(>)
   public :: operator(.eor.)
+
+  integer :: spin_det_cnt = 0
 
   type spin_det_type
     private
@@ -57,6 +61,11 @@ module spin_det_module
     module procedure new_spin_det_by_trunks
   end interface new_spin_det
 
+  interface delete
+    module procedure delete_spin_det
+    module procedure delete_spin_det_arr
+  end interface delete
+
   contains
 
   function new_spin_det_by_det_size(det_size) result(res)
@@ -66,6 +75,8 @@ module spin_det_module
     allocate(res)
     allocate(res%trunks(det_size))
     res%trunks(:) = 0
+    spin_det_cnt = spin_det_cnt + 1
+    ! print *, spin_det_cnt
   end function new_spin_det_by_det_size
  
   function new_spin_det_clone(src) result(res)
@@ -76,6 +87,8 @@ module spin_det_module
       allocate(res%trunks(size(src%trunks)))
       res%trunks(:) = src%trunks(:)
     endif
+    spin_det_cnt = spin_det_cnt + 1
+    ! print *, spin_det_cnt
   end function new_spin_det_clone
 
   function new_spin_det_by_trunks(trunks) result(res)
@@ -84,13 +97,45 @@ module spin_det_module
     allocate(res)
     allocate(res%trunks(size(trunks)))
     res%trunks(:) = trunks(:)
+    spin_det_cnt = spin_det_cnt + 1
+    ! print *, spin_det_cnt
   end function new_spin_det_by_trunks
+
+  function new_spin_det_arr(n) result(res)
+    integer, intent(in) :: n
+    type(spin_det_type), pointer :: res(:)
+
+    allocate(res(n))
+    spin_det_cnt = spin_det_cnt + n
+    ! print *, spin_det_cnt
+  end function new_spin_det_arr
+
+  subroutine delete_spin_det(spin_det)
+    type(spin_det_type), pointer, intent(inout) :: spin_det
+
+    call spin_det%clean()
+    deallocate(spin_det)
+    nullify(spin_det)
+  end subroutine delete_spin_det
+
+  subroutine delete_spin_det_arr(spin_det_arr)
+    type(spin_det_type), pointer, intent(inout) :: spin_det_arr(:)
+    integer :: i
+    do i = 1, size(spin_det_arr)
+      call spin_det_arr(i)%clean()
+    enddo
+    deallocate(spin_det_arr)
+    nullify(spin_det_arr)
+  end subroutine delete_spin_det_arr
 
   subroutine clean(this)
     class(spin_det_type), intent(inout) :: this
 
     deallocate(this%trunks)
     call this%destroy_orbitals_cache()
+    spin_det_cnt = spin_det_cnt - 1
+    ! print *, spin_det_cnt
+    call flush(6)
   end subroutine clean
   
   subroutine destroy_orbitals_cache(this)
@@ -244,7 +289,7 @@ module spin_det_module
   subroutine assign_spin_det(dest, src)
     type(spin_det_type), pointer, intent(in) :: src
     type(spin_det_type), pointer, intent(out) :: dest
-    
+   
     call dest%resize(size(src%trunks))
     dest%trunks(:) = src%trunks(:)
     call dest%destroy_orbitals_cache()
@@ -300,14 +345,13 @@ module spin_det_module
     integer :: i
     integer :: left_size
 
-    allocate(res)
     left_size = size(left%trunks)
     if (left_size /= size(right%trunks)) then
       call backtrace
       stop 'eor_spin_det input size mismatch.'
     endif
 
-    allocate(res%trunks(left_size))
+    res => new_spin_det(left_size)
     do i = 1, left_size
       res%trunks(i) = ieor(left%trunks(i), right%trunks(i))
     enddo

@@ -1,6 +1,7 @@
 module wavefunction_module
 
   use constants_module
+  use spin_det_module
   use det_module
   use types_module
 
@@ -129,9 +130,12 @@ module wavefunction_module
     class(wavefunction_type), intent(inout) :: this
     integer, intent(in) :: idx
     type(det_type), pointer, intent(in) :: det
+    type(det_type), pointer :: det_idx
 
     if (idx > this%n) stop 'set_det with idx out of bound.'
-    this%dets(idx) = det
+    det_idx => this%get_det(idx)
+    det_idx%up => new_spin_det(det%up)
+    det_idx%dn => new_spin_det(det%dn)
     if (this%n > 1) then
       this%is_sorted = .false.
     end if
