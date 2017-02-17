@@ -342,6 +342,7 @@ module solver_module
           j = beta_idx(ptr)
           if (j /= i) then
             tmp_det2 => this%wf%get_det(j)
+            print *, 'beta'
             H = this%get_hamiltonian_elem(tmp_det, tmp_det2)
             if (abs(H) > C%EPS) then
               cnt = cnt + 1
@@ -364,6 +365,7 @@ module solver_module
             j = alpha_m1_idx(ptr)
             if (j /= i) then
               tmp_det2 => this%wf%get_det(j)
+              print *, 'alpha'
               H = this%get_hamiltonian_elem(tmp_det, tmp_det2)
               if (abs(H) > C%EPS) then
                 cnt = cnt + 1

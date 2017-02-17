@@ -222,6 +222,7 @@ module spin_det_module
         allocate(orbitals(n_elec))
       endif
       orbitals(:) = this%orbitals_cache
+      print *, 'cache hit.'
       return
     endif
 
