@@ -16,6 +16,7 @@ module det_module
   public :: operator(<)
   public :: operator(>)
   public :: operator(.eor.)
+  public :: tmp_det_instances
 
   type det_type
     private
@@ -23,10 +24,13 @@ module det_module
     type(spin_det_type), pointer, public :: dn => null()
     ! integer, pointer, public :: elec_orbitals(:)
     contains
-      procedure, public :: clean
       procedure, public :: resize
       procedure, public :: print
+      procedure, public :: from_eor ! eor without allocation for performance.
+      procedure :: clean
   end type det_type
+
+  type(det_type), target :: tmp_det_instances(64)
 
   interface new_det
     module procedure new_det_clone
@@ -39,7 +43,6 @@ module det_module
 
   interface assignment(=)
     module procedure assign_det
-    module procedure assign_det_from_arr
   end interface
 
   interface operator(==)
@@ -63,7 +66,6 @@ module det_module
   function new_det_clone(src) result(det)
     type(det_type), pointer, intent(in) :: src
     type(det_type), pointer :: det
-    integer :: det_size
     
     allocate(det)
     det%up => new_spin_det(src%up)
@@ -73,12 +75,12 @@ module det_module
   function new_det_by_n_orb(n_orb) result(det)
     integer, intent(in) :: n_orb 
     type(det_type), pointer :: det
-    integer :: det_size
+    integer :: n_trunks
 
     allocate(det)
-    det_size = ceiling(n_orb * 1.0 / C%TRUNK_SIZE)
-    det%up => new_spin_det(det_size)
-    det%dn => new_spin_det(det_size)
+    n_trunks = ceiling(n_orb * 1.0 / C%TRUNK_SIZE)
+    det%up => new_spin_det(n_trunks)
+    det%dn => new_spin_det(n_trunks)
   end function new_det_by_n_orb
 
   subroutine delete_det(det)
@@ -99,12 +101,12 @@ module det_module
     nullify(this%dn)
   end subroutine clean
 
-  subroutine resize(this, det_size)
+  subroutine resize(this, n_trunks)
     class(det_type), intent(inout) :: this
-    integer, intent(in) :: det_size
+    integer, intent(in) :: n_trunks
 
-    call this%up%resize(det_size)
-    call this%dn%resize(det_size)
+    call this%up%resize(n_trunks)
+    call this%dn%resize(n_trunks)
   end subroutine resize
 
   subroutine print(this)
@@ -114,25 +116,23 @@ module det_module
     call this%dn%print()
   end subroutine print
 
+  subroutine from_eor(this, det1, det2)
+    class(det_type), intent(inout) :: this
+    type(det_type), pointer, intent(in) :: det1, det2
+    
+    this%up => tmp_spin_det_instances(1)
+    this%dn => tmp_spin_det_instances(2)
+    call this%up%from_eor(det1%up, det2%up)
+    call this%dn%from_eor(det1%dn, det2%dn)
+  end subroutine from_eor
+
   subroutine assign_det(dest, src)
     class(det_type), pointer, intent(in) :: src
     class(det_type), pointer, intent(out) :: dest
 
-    print *, 'ass det'
-    stop
     dest%up = src%up
     dest%dn = src%dn
   end subroutine assign_det
-
-  subroutine assign_det_from_arr(dest, src)
-    class(det_type), pointer, intent(in) :: src(:)
-    class(det_type), pointer, intent(out) :: dest
-
-    print *, 'fromarr'
-    stop
-    dest%up = src(1)%up
-    dest%dn = src(1)%dn
-  end subroutine assign_det_from_arr
 
   function equal_det(left, right) result(is_equal)
     class(det_type), pointer, intent(in) :: left, right

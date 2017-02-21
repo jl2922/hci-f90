@@ -1,5 +1,5 @@
 [default]
-cflags = -c -O3 -fcheck=all -g
+cflags = -c -O3 -g
 lflags = -O3 -g
 ext_libs = lapack blas
 fc = gfortran

@@ -11,8 +11,7 @@ module heg_solver_module
   
   private
 
-  public :: heg_solver_type
-  public :: new_heg_solver
+  public :: heg_solver
 
   type heg_data_type
     integer :: n_diff
@@ -42,17 +41,9 @@ module heg_solver_module
       procedure :: setup
   end type heg_solver_type
 
-  interface new_heg_solver
-    module procedure new_heg_solver_default
-  end interface new_heg_solver
+  type(heg_solver_type) :: heg_solver
 
   contains
-
-  function new_heg_solver_default() result(heg_solver)
-    type(heg_solver_type), pointer :: heg_solver
-
-    allocate(heg_solver)
-  end function new_heg_solver_default
 
   subroutine read_system_configs(this, config_file_unit)
     class(heg_solver_type), intent(inout) :: this
@@ -226,17 +217,16 @@ module heg_solver_module
       end do
     else
       ! Off-diagonal elements.
-      det_eor => det_pq .eor. det_rs
+      det_eor => tmp_det_instances(1)
+      call tmp_det_instances(1)%from_eor(det_pq, det_rs)
       n_eor_up = det_eor%up%get_n_elec()
       n_eor_dn = det_eor%dn%get_n_elec()
       if (n_eor_up + n_eor_dn /= 4) then
         H = 0.0_DOUBLE ! Not double excitation.
-        call delete(det_eor)
         return
       end if
       call det_eor%up%get_elec_orbitals(eor_up_set_bits, n_eor_up)
       call det_eor%dn%get_elec_orbitals(eor_dn_set_bits, n_eor_dn)
-      call delete(det_eor)
       k_change = 0.0_DOUBLE
       k_p_set = .false.
       k_q_set = .false.

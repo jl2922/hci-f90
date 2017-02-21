@@ -133,7 +133,7 @@ module solver_module
   subroutine solve(this, config_file_unit)
     class(solver_type), intent(inout) :: this
     integer, intent(in) :: config_file_unit
-    integer :: i
+    integer :: i, j
     real(DOUBLE) :: energy_prev, energy_cur
     type(wavefunction_type), pointer :: wf_prev
 
@@ -157,15 +157,18 @@ module solver_module
         write (6, '(A)') 'Number of dets change within 1%. Variation finished.'
         exit
       end if
+
       call this%diagonalize(energy_cur)
       write (6, '(A, F0.10)') 'Energy: ', energy_cur
       write (6, '()')
       call flush(6)
+
       if (abs(energy_prev - energy_cur) < 1.0e-6) then
         this%var_energy = energy_cur
         write (6, '(A)') 'Energy change within 1.0e-6. Variation finished.'
         exit
       end if
+
       energy_prev = energy_cur
       wf_prev = this%wf
     end do
@@ -313,6 +316,7 @@ module solver_module
       ! Generate H with the helper strings.
       allocate(tmp_H_indices(this%max_connected_dets))
       allocate(tmp_H_values(this%max_connected_dets))
+      tmp_spin_det => tmp_spin_det_instances(3)
       do i = 1, n
         ! Diagonal elem.
         tmp_det => this%wf%get_det(i)
@@ -354,8 +358,8 @@ module solver_module
         end do
 
         ! 2 dn or (1 up and 1 dn).
-        tmp_spin_det => new_spin_det(tmp_det%up)
-        call tmp_det%up%get_elec_orbitals(up_elec_orbitals, n_up)
+        tmp_spin_det = tmp_det%up
+        call tmp_spin_det%get_elec_orbitals(up_elec_orbitals, n_up)
         do ii = 1, n_up
           call tmp_spin_det%set_orbital(up_elec_orbitals(ii), .false.)
           k = util%binary_search(tmp_spin_det, alpha_m1)
@@ -391,7 +395,6 @@ module solver_module
           end do
           call tmp_spin_det%set_orbital(up_elec_orbitals(ii), .true.)
         end do
-        call delete(tmp_spin_det)
 
         ! Add to H.
         call util%arg_sort(tmp_H_indices, order, cnt)

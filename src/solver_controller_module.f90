@@ -7,31 +7,20 @@ module solver_controller_module
 
   private
 
-  public :: solver_controller_type
-  public :: new_solver_controller
+  public :: solver_controller
 
   integer, parameter :: SYSTEM_NAME_LENGTH = 128
 
   type solver_controller_type
-    private
-    type(heg_solver_type), pointer :: heg_solver => null()
     contains
       procedure, public :: start
       procedure :: create_config_file
       procedure :: get_system_name
   end type solver_controller_type
 
-  interface new_solver_controller
-    module procedure new_solver_controller_default
-  end interface
+  type(solver_controller_type) :: solver_controller
 
   contains
-
-  function new_solver_controller_default() result(solver_controller)
-    type(solver_controller_type), pointer :: solver_controller
-
-    allocate(solver_controller)
-  end function new_solver_controller_default
 
   subroutine start(this)
     class(solver_controller_type), intent(inout) :: this
@@ -45,8 +34,7 @@ module solver_controller_module
 
     select case (system_name)
     case ('heg')
-      this%heg_solver => new_heg_solver()
-      call this%heg_solver%solve(config_file_unit)
+      call heg_solver%solve(config_file_unit)
     case default
       stop 'Unrecognized system'
     end select
