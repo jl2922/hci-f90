@@ -279,6 +279,7 @@ module solver_module
       integer, allocatable :: beta_idx(:)
       integer, allocatable :: tmp_H_indices(:)
       integer, allocatable :: order(:)
+      integer, allocatable :: alpha_m1_lbound(:), alpha_m1_rbound(:)
       logical, allocatable :: is_included(:)
       real(DOUBLE) :: H
       real(DOUBLE), allocatable :: tmp_H_values(:)
@@ -300,6 +301,8 @@ module solver_module
       call sort_by_first_arg(n, beta, beta_idx)
       alpha_m1 => new_spin_det_arr(n * n_up)
       allocate(alpha_m1_idx(n * n_up))
+      allocate(alpha_m1_lbound(n * n_up))
+      allocate(alpha_m1_rbound(n * n_up))
       allocate(up_elec_orbitals(n_up))
       do i = 1, n
         det_i => this%wf%get_det(i)
@@ -313,11 +316,27 @@ module solver_module
       end do
       nullify(det_i)
       call sort_by_first_arg(n, alpha_m1, alpha_m1_idx)
+      alpha_m1_lbound(1) = 1
+      do i = 2, n * n_up
+        if (alpha_m1(i) == alpha_m1(i - 1)) then
+          alpha_m1_lbound(i) = alpha_m1_lbound(i - 1)
+        else
+          alpha_m1_lbound(i) = i
+        endif
+      enddo
+      alpha_m1_rbound(n * n_up) = n * n_up
+      do i = n * n_up - 1, 1, -1
+        if (alpha_m1(i) == alpha_m1(i + 1)) then
+          alpha_m1_rbound(i) = alpha_m1_rbound(i + 1)
+        else
+          alpha_m1_rbound(i) = i
+        endif
+      enddo
       write (6, '(A)') 'alpha and beta strings created.'
 
       ! Generate H with the helper strings.
-      allocate(tmp_H_indices(this%max_connected_dets))
-      allocate(tmp_H_values(this%max_connected_dets))
+      allocate(tmp_H_indices(n))
+      allocate(tmp_H_values(n))
       allocate(is_included(n))
       tmp_spin_det_ptr => tmp_spin_det
       is_included = .false.
@@ -370,10 +389,9 @@ module solver_module
         do ii = 1, n_up
           call tmp_spin_det%set_orbital(up_elec_orbitals(ii), .false.)
           k = util%binary_search(tmp_spin_det, alpha_m1)
-          ptr = k
-          do while (tmp_spin_det == alpha_m1(ptr))
+          do ptr = alpha_m1_lbound(k), alpha_m1_rbound(k)
             j = alpha_m1_idx(ptr)
-            if (j /= i .and. (.not. is_included(j))) then
+            if (j > i .and. (.not. is_included(j))) then
               det_j => this%wf%get_det(j)
               H = this%get_hamiltonian_elem(det_i, det_j)
               if (abs(H) > C%EPS) then
@@ -383,25 +401,7 @@ module solver_module
                 is_included(j) = .true.
               end if
             end if
-            ptr = ptr - 1
-            if (ptr == 0) exit
-          end do
-          ptr = k
-          do while (tmp_spin_det == alpha_m1(ptr))
-            j = alpha_m1_idx(ptr)
-            if (j /= i .and. (.not. is_included(j))) then
-              det_j => this%wf%get_det(j)
-              H = this%get_hamiltonian_elem(det_i, det_j)
-              if (abs(H) > C%EPS) then
-                cnt = cnt + 1
-                tmp_H_indices(cnt) = j
-                tmp_H_values(cnt) = H
-                is_included(j) = .true.
-              end if
-            end if
-            ptr = ptr + 1
-            if (ptr > n * n_up) exit
-          end do
+          enddo
           call tmp_spin_det%set_orbital(up_elec_orbitals(ii), .true.)
         end do
 
