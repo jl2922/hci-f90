@@ -16,7 +16,6 @@ module det_module
   public :: operator(<)
   public :: operator(>)
   public :: operator(.eor.)
-  public :: tmp_det_instances
 
   type det_type
     private
@@ -29,8 +28,6 @@ module det_module
       procedure, public :: from_eor ! eor without allocation for performance.
       procedure :: clean
   end type det_type
-
-  type(det_type), target :: tmp_det_instances(64)
 
   interface new_det
     module procedure new_det_clone
@@ -119,9 +116,7 @@ module det_module
   subroutine from_eor(this, det1, det2)
     class(det_type), intent(inout) :: this
     type(det_type), pointer, intent(in) :: det1, det2
-    
-    this%up => tmp_spin_det_instances(1)
-    this%dn => tmp_spin_det_instances(2)
+
     call this%up%from_eor(det1%up, det2%up)
     call this%dn%from_eor(det1%dn, det2%dn)
   end subroutine from_eor

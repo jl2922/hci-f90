@@ -279,78 +279,85 @@ module solver_module
       integer, allocatable :: beta_idx(:)
       integer, allocatable :: tmp_H_indices(:)
       integer, allocatable :: order(:)
+      logical, allocatable :: is_included(:)
       real(DOUBLE) :: H
       real(DOUBLE), allocatable :: tmp_H_values(:)
-      type(spin_det_type), pointer :: tmp_spin_det
+      type(spin_det_type), target :: tmp_spin_det
+      type(spin_det_type), pointer :: tmp_spin_det_ptr
       type(spin_det_type), pointer :: alpha_m1(:)
       type(spin_det_type), pointer :: beta(:)
-      type(det_type), pointer :: tmp_det, tmp_det2
+      type(det_type), pointer :: det_i, det_j
 
       ! Setup alpha_m1 and beta strings.
       beta => new_spin_det_arr(n)
       allocate(beta_idx(n))
       do i = 1, n
-        tmp_det => this%wf%get_det(i)
-        beta(i) = tmp_det%dn
+        det_i => this%wf%get_det(i)
+        beta(i) = det_i%dn
         beta_idx(i) = i
       end do
-      nullify(tmp_det)
+      nullify(det_i)
       call sort_by_first_arg(n, beta, beta_idx)
       alpha_m1 => new_spin_det_arr(n * n_up)
       allocate(alpha_m1_idx(n * n_up))
       allocate(up_elec_orbitals(n_up))
       do i = 1, n
-        tmp_det => this%wf%get_det(i)
-        call tmp_det%up%get_elec_orbitals(up_elec_orbitals, n_up)
+        det_i => this%wf%get_det(i)
+        call det_i%up%get_elec_orbitals(up_elec_orbitals, n_up)
         do j = 1, n_up
-          alpha_m1(n_up * (i - 1) + j) = tmp_det%up
+          alpha_m1(n_up * (i - 1) + j) = det_i%up
           call alpha_m1(n_up * (i - 1) + j)%set_orbital( &
               & up_elec_orbitals(j), .false.)
         end do
         alpha_m1_idx(n_up * (i - 1) + 1: n_up * i) = i
       end do
-      nullify(tmp_det)
+      nullify(det_i)
       call sort_by_first_arg(n, alpha_m1, alpha_m1_idx)
       write (6, '(A)') 'alpha and beta strings created.'
 
       ! Generate H with the helper strings.
       allocate(tmp_H_indices(this%max_connected_dets))
       allocate(tmp_H_values(this%max_connected_dets))
-      tmp_spin_det => tmp_spin_det_instances(3)
+      allocate(is_included(n))
+      tmp_spin_det_ptr => tmp_spin_det
+      is_included = .false.
       do i = 1, n
         ! Diagonal elem.
-        tmp_det => this%wf%get_det(i)
+        det_i => this%wf%get_det(i)
         cnt = 1
         tmp_H_indices(cnt) = i
-        tmp_H_values(cnt) = this%get_hamiltonian_elem(tmp_det, tmp_det)
+        tmp_H_values(cnt) = this%get_hamiltonian_elem(det_i, det_i)
+        is_included(i) = .true.
 
         ! 2 up.
-        k = util%binary_search(tmp_det%dn, beta)
+        k = util%binary_search(det_i%dn, beta)
         ptr = k
-        do while (tmp_det%dn == beta(ptr))
+        do while (det_i%dn == beta(ptr))
           j = beta_idx(ptr)
-          if (j /= i) then
-            tmp_det2 => this%wf%get_det(j)
-            H = this%get_hamiltonian_elem(tmp_det, tmp_det2)
+          if (j /= i .and. (.not. is_included(j))) then
+            det_j => this%wf%get_det(j)
+            H = this%get_hamiltonian_elem(det_i, det_j)
             if (abs(H) > C%EPS) then
               cnt = cnt + 1
               tmp_H_indices(cnt) = j
               tmp_H_values(cnt) = H
+              is_included(j) = .true.
             end if
           end if
           ptr = ptr - 1
           if (ptr == 0) exit
         end do
         ptr = k
-        do while (tmp_det%dn == beta(ptr))
+        do while (det_i%dn == beta(ptr))
           j = beta_idx(ptr)
-          if (j /= i) then
-            tmp_det2 => this%wf%get_det(j)
-            H = this%get_hamiltonian_elem(tmp_det, tmp_det2)
+          if (j /= i .and. (.not. is_included(j))) then
+            det_j => this%wf%get_det(j)
+            H = this%get_hamiltonian_elem(det_i, det_j)
             if (abs(H) > C%EPS) then
               cnt = cnt + 1
               tmp_H_indices(cnt) = j
               tmp_H_values(cnt) = H
+              is_included(j) = .true.
             end if
           end if
           ptr = ptr + 1
@@ -358,7 +365,7 @@ module solver_module
         end do
 
         ! 2 dn or (1 up and 1 dn).
-        tmp_spin_det = tmp_det%up
+        tmp_spin_det = det_i%up
         call tmp_spin_det%get_elec_orbitals(up_elec_orbitals, n_up)
         do ii = 1, n_up
           call tmp_spin_det%set_orbital(up_elec_orbitals(ii), .false.)
@@ -366,13 +373,14 @@ module solver_module
           ptr = k
           do while (tmp_spin_det == alpha_m1(ptr))
             j = alpha_m1_idx(ptr)
-            if (j /= i) then
-              tmp_det2 => this%wf%get_det(j)
-              H = this%get_hamiltonian_elem(tmp_det, tmp_det2)
+            if (j /= i .and. (.not. is_included(j))) then
+              det_j => this%wf%get_det(j)
+              H = this%get_hamiltonian_elem(det_i, det_j)
               if (abs(H) > C%EPS) then
                 cnt = cnt + 1
                 tmp_H_indices(cnt) = j
                 tmp_H_values(cnt) = H
+                is_included(j) = .true.
               end if
             end if
             ptr = ptr - 1
@@ -381,13 +389,14 @@ module solver_module
           ptr = k
           do while (tmp_spin_det == alpha_m1(ptr))
             j = alpha_m1_idx(ptr)
-            if (j /= i) then
-              tmp_det2 => this%wf%get_det(j)
-              H = this%get_hamiltonian_elem(tmp_det, tmp_det2)
+            if (j /= i .and. (.not. is_included(j))) then
+              det_j => this%wf%get_det(j)
+              H = this%get_hamiltonian_elem(det_i, det_j)
               if (abs(H) > C%EPS) then
                 cnt = cnt + 1
                 tmp_H_indices(cnt) = j
                 tmp_H_values(cnt) = H
+                is_included(j) = .true.
               end if
             end if
             ptr = ptr + 1
@@ -400,14 +409,16 @@ module solver_module
         call util%arg_sort(tmp_H_indices, order, cnt)
         distinct_cnt = 0
         do ii = 1, cnt
+          j = order(ii)
           if (ii > 1) then
-            if (tmp_H_indices(order(ii)) == tmp_H_indices(order(ii - 1))) then
+            if (tmp_H_indices(j) == tmp_H_indices(order(ii - 1))) then
               cycle
             end if
           endif
-          if (tmp_H_indices(order(ii)) < i) cycle
-          call H_indices%append(tmp_H_indices(order(ii)))
-          call H_values%append(tmp_H_values(order(ii)))
+          if (tmp_H_indices(j) < i) cycle
+          call H_indices%append(tmp_H_indices(j))
+          call H_values%append(tmp_H_values(j))
+          is_included(tmp_H_indices(j)) = .false.
           distinct_cnt = distinct_cnt + 1
         end do
         n_nonzero_elems(i) = distinct_cnt

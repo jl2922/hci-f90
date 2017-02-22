@@ -43,6 +43,10 @@ module heg_solver_module
 
   type(heg_solver_type) :: heg_solver
 
+  type(det_type), target :: tmp_det_for_get_hamiltonian_elem
+  type(spin_det_type), target :: tmp_up_for_get_hamiltonian_elem
+  type(spin_det_type), target :: tmp_dn_for_get_hamiltonian_elem
+
   contains
 
   subroutine read_system_configs(this, config_file_unit)
@@ -94,9 +98,9 @@ module heg_solver_module
     n_up = this%n_up
     n_dn = this%n_dn
     this%max_connected_dets = &
-        & 1 + util%n_combinations(n_up, 2) + util%n_combinations(n_orb - n_up, 2) &
-        & + util%n_combinations(n_dn, 2) + util%n_combinations(n_orb - n_dn, 2) &
-        & + n_up * n_dn * (n_orb - n_dn) * (n_orb - n_up)
+        & 1 + n_up * n_dn * (n_orb - n_dn) * (n_orb - n_up) &
+        & + util%n_combinations(n_up, 2) + util%n_combinations(n_orb - n_up, 2) &
+        & + util%n_combinations(n_dn, 2) + util%n_combinations(n_orb - n_dn, 2)
 
     ! Setup HF determinant.
     this%wf => new_wavefunction(1)
@@ -217,8 +221,10 @@ module heg_solver_module
       end do
     else
       ! Off-diagonal elements.
-      det_eor => tmp_det_instances(1)
-      call tmp_det_instances(1)%from_eor(det_pq, det_rs)
+      det_eor => tmp_det_for_get_hamiltonian_elem
+      det_eor%up => tmp_up_for_get_hamiltonian_elem
+      det_eor%dn => tmp_dn_for_get_hamiltonian_elem
+      call det_eor%from_eor(det_pq, det_rs)
       n_eor_up = det_eor%up%get_n_elec()
       n_eor_dn = det_eor%dn%get_n_elec()
       if (n_eor_up + n_eor_dn /= 4) then
