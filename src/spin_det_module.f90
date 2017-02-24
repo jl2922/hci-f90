@@ -130,6 +130,7 @@ module spin_det_module
   subroutine delete_spin_det_arr(spin_det_arr)
     type(spin_det_type), pointer, intent(inout) :: spin_det_arr(:)
     integer :: i
+
     do i = 1, size(spin_det_arr)
       call spin_det_arr(i)%clean()
     enddo
@@ -143,12 +144,12 @@ module spin_det_module
     deallocate(this%trunks)
     call this%destroy_orbitals_cache()
     spin_det_cnt = spin_det_cnt - 1
-    ! print *, spin_det_cnt
     call flush(6)
   end subroutine clean
   
   subroutine destroy_orbitals_cache(this)
     class(spin_det_type), intent(inout) :: this
+
     if (allocated(this%orbitals_cache)) then
       deallocate(this%orbitals_cache)
     endif

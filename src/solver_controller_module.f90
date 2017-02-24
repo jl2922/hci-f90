@@ -9,7 +9,7 @@ module solver_controller_module
 
   public :: solver_controller
 
-  integer, parameter :: SYSTEM_NAME_LENGTH = 128
+  integer, parameter :: SYSTEM_NAME_LENGTH = 64
 
   type solver_controller_type
     contains
@@ -42,14 +42,17 @@ module solver_controller_module
 
   function create_config_file(this) result(config_file_unit)
     class(solver_controller_type), intent(inout) :: this
-    integer :: config_file_unit
     integer, parameter :: MAX_LINE_LENGTH = 1024
-    character(MAX_LINE_LENGTH) :: line
+    integer :: config_file_unit
     integer :: io_err
+    character(MAX_LINE_LENGTH) :: line
 
     config_file_unit = util%get_free_unit()
-    open(unit=config_file_unit, status='scratch', &
-        & recl=MAX_LINE_LENGTH, delim='APOSTROPHE')
+    open(& 
+        & unit=config_file_unit, &
+        & status='scratch', &
+        & recl=MAX_LINE_LENGTH, &
+        & delim='APOSTROPHE')
     do
       read(5, '(A)', iostat = io_err) line
       if (io_err < 0) then

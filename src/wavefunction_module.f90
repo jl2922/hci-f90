@@ -22,7 +22,6 @@ module wavefunction_module
     contains
       procedure, public :: reserve_dets
       procedure, public :: append_det
-      procedure, public :: initialize
       procedure, public :: get_det
       procedure, public :: set_det
       procedure, public :: sort_dets ! Into ascending order.
@@ -53,7 +52,7 @@ module wavefunction_module
     type(wavefunction_type), pointer :: wf
 
     allocate(wf)
-    call assign_wavefunction(wf, src)
+    wf = src
   end function new_wavefunction_clone
 
   function new_wavefunction_reserve(capacity) result(wf)
@@ -106,14 +105,6 @@ module wavefunction_module
     call this%set_det(this%n, det)
   end subroutine append_det
 
-  subroutine initialize(this, n_orb, capacity)
-    class(wavefunction_type), intent(inout) :: this
-    integer, intent(in) :: n_orb
-    integer, intent(in) :: capacity
-    call this%reserve_dets(capacity)
-    this%n = 0
-  end subroutine initialize
-
   function get_det(this, idx) result(det)
     class(wavefunction_type), intent(inout) :: this
     integer, intent(in) :: idx
@@ -126,16 +117,16 @@ module wavefunction_module
     det => this%dets(idx)
   end function get_det
 
-  subroutine set_det(this, idx, det)
+  subroutine set_det(this, idx, src)
     class(wavefunction_type), intent(inout) :: this
     integer, intent(in) :: idx
-    type(det_type), pointer, intent(in) :: det
-    type(det_type), pointer :: det_idx
+    type(det_type), pointer, intent(in) :: src
+    type(det_type), pointer :: det
 
     if (idx > this%n) stop 'set_det with idx out of bound.'
-    det_idx => this%get_det(idx)
-    det_idx%up => new_spin_det(det%up)
-    det_idx%dn => new_spin_det(det%dn)
+    det => this%get_det(idx)
+    det%up => new_spin_det(src%up)
+    det%dn => new_spin_det(src%dn)
     if (this%n > 1) then
       this%is_sorted = .false.
     end if
@@ -279,18 +270,6 @@ module wavefunction_module
     call move_alloc(new_coefs, this%coefs)
     this%n = n_merged_dets
   end subroutine merge_sorted_dets
-
-  subroutine assign_dets(dest, src)
-    type(wavefunction_type), intent(in) :: src
-    type(wavefunction_type), intent(out) :: dest
-    integer :: i
-
-    call dest%reserve_dets(src%n)
-    dest%n = src%n
-    do i = 1, src%n
-      dest%dets(i) = src%dets(i)
-    enddo
-  end subroutine assign_dets
 
   subroutine print(this)
     class(wavefunction_type), intent(inout) :: this

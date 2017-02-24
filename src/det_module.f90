@@ -26,7 +26,6 @@ module det_module
       procedure, public :: resize
       procedure, public :: print
       procedure, public :: from_eor ! eor without allocation for performance.
-      procedure :: clean
   end type det_type
 
   interface new_det
@@ -36,6 +35,7 @@ module det_module
 
   interface delete
     module procedure delete_det
+    module procedure delete_det_arr
   end interface delete
 
   interface assignment(=)
@@ -82,21 +82,24 @@ module det_module
 
   subroutine delete_det(det)
     type(det_type), pointer :: det
-    call det%clean()
+
+    call delete(det%up)
+    call delete(det%dn)
     deallocate(det)
     nullify(det)
   end subroutine delete_det
 
-  subroutine clean(this)
-    class(det_type), intent(inout) :: this
+  subroutine delete_det_arr(arr)
+    type(det_type), pointer :: arr(:)
+    integer :: i
 
-    call this%up%clean()
-    call this%dn%clean()
-    deallocate(this%up)
-    deallocate(this%dn)
-    nullify(this%up)
-    nullify(this%dn)
-  end subroutine clean
+    do i = 1, size(arr)
+      call delete(arr(i)%up)
+      call delete(arr(i)%dn)
+    enddo
+    deallocate(arr)
+    nullify(arr)
+  end subroutine delete_det_arr
 
   subroutine resize(this, n_trunks)
     class(det_type), intent(inout) :: this

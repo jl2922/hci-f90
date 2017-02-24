@@ -2,10 +2,11 @@ module heg_solver_module
 
   use constants_module
   use det_module
-  use wavefunction_module
   use solver_module
+  use spin_det_module
   use types_module
   use utilities_module
+  use wavefunction_module
 
   implicit none
   
@@ -114,9 +115,7 @@ module heg_solver_module
     end do
     call this%wf%append_det(tmp_det)
     HF_energy = this%get_hamiltonian_elem(tmp_det, tmp_det)
-    call tmp_det%clean()
-    deallocate(tmp_det)
-    nullify(tmp_det)
+    call delete(tmp_det)
     write (6, '(A, F0.10)') 'HF energy: ', HF_energy
     this%HF_energy = HF_energy
 
@@ -159,8 +158,8 @@ module heg_solver_module
     allocate(this%heg%k_vectors(3, n_orb))
     do i = 1, n_orb
       this%heg%k_vectors(:, i) = temp_k_vectors(:, order(i))
-      write (6, '(A, I0, 3F15.10)'), 'K-point #', i, &
-          & this%heg%k_vectors(:, i) * this%heg%k_unit
+      write (6, '(A, I0, 3F15.10)') &
+          & 'K-point #', i, this%heg%k_vectors(:, i) * this%heg%k_unit
     end do
   end subroutine generate_k_vectors
 
@@ -722,8 +721,7 @@ module heg_solver_module
           call tmp_det%dn%set_orbital(s - n_orb, .true.)
         end if
         call connected_dets%append_det(tmp_det)
-        call tmp_det%clean()
-        deallocate(tmp_det)
+        call delete(tmp_det)
       end subroutine
 
   end subroutine find_connected_dets

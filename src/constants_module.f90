@@ -7,7 +7,7 @@ module constants_module
   private
 
   public :: C
-  protected :: C ! Protected makes it invariant.
+  protected :: C ! Keep invariant.
 
   ! Create a namespace for all constants.
   type constants_type

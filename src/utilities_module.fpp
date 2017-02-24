@@ -5,18 +5,20 @@ module utilities_module
 
   implicit none
 
-  public :: util
+  private
 
-  ! Create a namespace for all the utility functions.
+  public :: util ! Namespace for all utilility functions.
+
   type utilities_type
     contains
-      procedure :: get_free_unit
-      generic :: arg_sort => arg_sort_int, arg_sort_double
-      procedure, private :: arg_sort_int, arg_sort_double
-      generic :: binary_search => binary_search_spin_det
-      procedure, private :: binary_search_spin_det
-      procedure :: n_combinations
+      procedure, public :: get_free_unit
+      generic, public :: arg_sort => arg_sort_int, arg_sort_double
+      generic, public :: binary_search => binary_search_spin_det
+      procedure, public :: n_combinations
+      procedure :: arg_sort_int, arg_sort_double
+      procedure :: binary_search_spin_det
   end type utilities_type
+
   type(utilities_type) :: util
 
   contains
@@ -24,6 +26,7 @@ module utilities_module
   type(integer) function get_free_unit(this) result(free_unit)
     class(utilities_type), intent(in) :: this
     logical :: is_open
+
     do free_unit = 100, 999
       inquire(unit=free_unit, opened=is_open)
       if (.not. is_open) then
@@ -126,6 +129,7 @@ module utilities_module
     integer, intent(in) :: n, k
     integer :: res
     integer :: i
+
     res = 1
     do i = n, n - k + 1
       res = res * i

@@ -265,6 +265,8 @@ module solver_module
         & H_indices, n_nonzero_elems, H_values, initial_vectors)
     lowest_eigenvalue = lowest_eigenvalues(1)
     this%wf%coefs(:) = final_vectors(:, 1)
+    call delete(H_indices)
+    call delete(H_values)
 
     contains
 

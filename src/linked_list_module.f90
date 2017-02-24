@@ -7,6 +7,7 @@ module linked_list_module__int
 
   public :: linked_list_type__int
   public :: new_linked_list__int
+  public :: delete
 
   integer, parameter :: TRUNK_SIZE = 65536 ! Fits into the CPU L2 cache we have.
   ! integer, parameter :: TRUNK_SIZE = 1024 ! For testing.
@@ -29,12 +30,15 @@ module linked_list_module__int
       procedure, public :: begin ! Returns the iterator to the beginning of the list.
       procedure, public :: get ! Get the current item pointed by the iterator.
       procedure, public :: next ! Advance the iterator.
-      procedure, public :: clear
   end type linked_list_type__int
 
   interface new_linked_list__int
     module procedure new_linked_list__int_default
   end interface
+
+  interface delete
+    module procedure delete_linked_list__int
+  end interface delete
 
   contains
 
@@ -43,6 +47,20 @@ module linked_list_module__int
 
     allocate(list)
   end function new_linked_list__int_default
+
+  subroutine delete_linked_list__int(list)
+    type(linked_list_type__int), pointer, intent(inout) :: list
+    type(node_type), pointer :: cur_trunk, next_trunk
+    
+    next_trunk => list%head
+    do while(associated(next_trunk))
+      cur_trunk => next_trunk
+      next_trunk => next_trunk%next
+      deallocate(cur_trunk)
+    enddo
+    deallocate(list)
+    nullify(list)
+  end subroutine delete_linked_list__int
 
   subroutine append(this, item)
     class(linked_list_type__int), intent(inout) :: this
@@ -94,22 +112,6 @@ module linked_list_module__int
     if(present(stat)) stat = .false.
   end subroutine next
 
-  subroutine clear(this)
-    class(linked_list_type__int), intent(inout) :: this
-    type(node_type), pointer :: cur_trunk
-    type(node_type), pointer :: next_trunk
-    if (.not. associated(this%head)) return
-    next_trunk => this%head
-    do while (associated(next_trunk))
-     cur_trunk => next_trunk
-     next_trunk => next_trunk%next
-     deallocate(cur_trunk)
-    enddo
-    nullify(this%head)
-    nullify(this%node)
-    this%n = 0
-  end subroutine clear
-
 end module linked_list_module__int
 module linked_list_module__double
 
@@ -121,6 +123,7 @@ module linked_list_module__double
 
   public :: linked_list_type__double
   public :: new_linked_list__double
+  public :: delete
 
   integer, parameter :: TRUNK_SIZE = 65536 ! Fits into the CPU L2 cache we have.
   ! integer, parameter :: TRUNK_SIZE = 1024 ! For testing.
@@ -143,12 +146,15 @@ module linked_list_module__double
       procedure, public :: begin ! Returns the iterator to the beginning of the list.
       procedure, public :: get ! Get the current item pointed by the iterator.
       procedure, public :: next ! Advance the iterator.
-      procedure, public :: clear
   end type linked_list_type__double
 
   interface new_linked_list__double
     module procedure new_linked_list__double_default
   end interface
+
+  interface delete
+    module procedure delete_linked_list__double
+  end interface delete
 
   contains
 
@@ -157,6 +163,20 @@ module linked_list_module__double
 
     allocate(list)
   end function new_linked_list__double_default
+
+  subroutine delete_linked_list__double(list)
+    type(linked_list_type__double), pointer, intent(inout) :: list
+    type(node_type), pointer :: cur_trunk, next_trunk
+    
+    next_trunk => list%head
+    do while(associated(next_trunk))
+      cur_trunk => next_trunk
+      next_trunk => next_trunk%next
+      deallocate(cur_trunk)
+    enddo
+    deallocate(list)
+    nullify(list)
+  end subroutine delete_linked_list__double
 
   subroutine append(this, item)
     class(linked_list_type__double), intent(inout) :: this
@@ -207,21 +227,5 @@ module linked_list_module__double
     endif
     if(present(stat)) stat = .false.
   end subroutine next
-
-  subroutine clear(this)
-    class(linked_list_type__double), intent(inout) :: this
-    type(node_type), pointer :: cur_trunk
-    type(node_type), pointer :: next_trunk
-    if (.not. associated(this%head)) return
-    next_trunk => this%head
-    do while (associated(next_trunk))
-     cur_trunk => next_trunk
-     next_trunk => next_trunk%next
-     deallocate(cur_trunk)
-    enddo
-    nullify(this%head)
-    nullify(this%node)
-    this%n = 0
-  end subroutine clear
 
 end module linked_list_module__double
