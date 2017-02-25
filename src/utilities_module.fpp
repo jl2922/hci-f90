@@ -13,10 +13,9 @@ module utilities_module
     contains
       procedure, public :: get_free_unit
       generic, public :: arg_sort => arg_sort_int, arg_sort_double
-      generic, public :: binary_search => binary_search_spin_det
       procedure, public :: n_combinations
+      procedure, public :: binary_search_lbound, binary_search_rbound
       procedure :: arg_sort_int, arg_sort_double
-      procedure :: binary_search_spin_det
   end type utilities_type
 
   type(utilities_type) :: util
@@ -101,28 +100,45 @@ module utilities_module
   end subroutine arg_sort_${shortname[dtype]}$
   #:endfor
 
-  function binary_search_spin_det(this, val, arr) result(k)
+  function binary_search_lbound(this, val, arr) result(res)
     class(utilities_type), intent(in) :: this
     type(spin_det_type), pointer, intent(in) :: val
     type(spin_det_type), pointer, intent(in) :: arr(:)
-    integer :: k
+    integer :: res
+    integer :: left, right, mid
+
+    left = 0
+    right = size(arr)
+    do while (right - left > 1)
+      mid = (left + right) / 2
+      if (arr(mid) < val) then
+        left = mid
+      else
+        right = mid
+      endif
+    end do
+    res = right
+  end function binary_search_lbound
+
+  function binary_search_rbound(this, val, arr) result(res)
+    class(utilities_type), intent(in) :: this
+    type(spin_det_type), pointer, intent(in) :: val
+    type(spin_det_type), pointer, intent(in) :: arr(:)
+    integer :: res
     integer :: left, right, mid
 
     left = 1
-    right = size(arr)
-    do while (left < right)
+    right = size(arr) + 1
+    do while (right - left > 1)
       mid = (left + right) / 2
-      if (arr(mid) == val) then
-        k = mid
-        return
-      else if (arr(mid) < val) then
-        left = mid + 1
+      if (.not. arr(mid) > val) then
+        left = mid
       else
-        right = mid - 1
-      end if
+        right = mid
+      endif
     end do
-    k = left
-  end function binary_search_spin_det
+    res = left
+  end function binary_search_rbound
 
   function n_combinations(this, n, k) result(res)
     class(utilities_type), intent(in) :: this
