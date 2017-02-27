@@ -1,4 +1,6 @@
 module linked_list_module__int
+  ! This is a linked list implementation that optimized for speed but does not 
+  ! allow removing items.
 
 
   implicit none
@@ -10,7 +12,7 @@ module linked_list_module__int
   public :: delete
 
   integer, parameter :: TRUNK_SIZE = 65536 ! Fits into the CPU L2 cache we have.
-  ! integer, parameter :: TRUNK_SIZE = 1024 ! For testing.
+  ! integer, parameter :: TRUNK_SIZE = 4 ! For testing.
 
   type :: node_type
     private
@@ -114,6 +116,8 @@ module linked_list_module__int
 
 end module linked_list_module__int
 module linked_list_module__double
+  ! This is a linked list implementation that optimized for speed but does not 
+  ! allow removing items.
 
   use types_module
 
@@ -126,7 +130,7 @@ module linked_list_module__double
   public :: delete
 
   integer, parameter :: TRUNK_SIZE = 65536 ! Fits into the CPU L2 cache we have.
-  ! integer, parameter :: TRUNK_SIZE = 1024 ! For testing.
+  ! integer, parameter :: TRUNK_SIZE = 4 ! For testing.
 
   type :: node_type
     private

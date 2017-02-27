@@ -1,6 +1,8 @@
 #:set shortname {'integer': 'int', 'real': 'real', 'real(DOUBLE)': 'double'}
 #:for dtype in ['integer', 'real(DOUBLE)']
 module linked_list_module__${shortname[dtype]}$
+  ! This is a linked list implementation that optimized for speed but does not 
+  ! allow removing items.
 
 #:if dtype == 'real(DOUBLE)'
   use types_module
@@ -15,7 +17,7 @@ module linked_list_module__${shortname[dtype]}$
   public :: delete
 
   integer, parameter :: TRUNK_SIZE = 65536 ! Fits into the CPU L2 cache we have.
-  ! integer, parameter :: TRUNK_SIZE = 1024 ! For testing.
+  ! integer, parameter :: TRUNK_SIZE = 4 ! For testing.
 
   type :: node_type
     private

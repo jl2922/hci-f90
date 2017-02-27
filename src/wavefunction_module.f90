@@ -84,8 +84,7 @@ module wavefunction_module
     integer, intent(in) :: capacity
 
     if (associated(this%dets) .and. size(this%dets) /= capacity) then
-      deallocate(this%dets)
-      nullify(this%dets)
+      call delete(this%dets)
       deallocate(this%coefs)
     end if
     if (.not. associated(this%dets)) then
