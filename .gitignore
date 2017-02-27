@@ -1,7 +1,7 @@
 hci
-*_test
-*.txt
 profile
+*.txt
+*.log
 
 # Compiled Object files
 *.slo
