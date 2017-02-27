@@ -1,5 +1,7 @@
 hci
 *_test
+*.txt
+profile
 
 # Compiled Object files
 *.slo
