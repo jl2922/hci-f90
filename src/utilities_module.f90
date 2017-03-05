@@ -9,13 +9,14 @@ module utilities_module
 
   public :: util ! Namespace for all utilility functions.
 
+
   type utilities_type
     contains
       procedure, public :: get_free_unit
-      generic, public :: arg_sort => arg_sort_int, arg_sort_double
+      generic, public :: arg_sort => arg_sort_int, arg_sort_double, arg_sort_spin_det
       procedure, public :: n_combinations
       procedure, public :: binary_search_lbound, binary_search_rbound
-      procedure :: arg_sort_int, arg_sort_double
+      procedure :: arg_sort_int, arg_sort_double, arg_sort_spin_det 
   end type utilities_type
 
   type(utilities_type) :: util
@@ -34,68 +35,6 @@ module utilities_module
     end do
   end function get_free_unit
   
-  subroutine arg_sort_double(this, arr, order, n)
-    class(utilities_type), intent(in) :: this
-    real(DOUBLE), intent(in) :: arr(:)
-    integer, allocatable, intent(out) :: order(:)
-    integer, intent(in) :: n
-    integer :: i
-    integer, allocatable :: tmp_order(:)
-
-    if (.not. allocated(order)) then
-      allocate(order(n))
-    end if
-    do i = 1, n
-      order(i) = i
-    end do
-    allocate(tmp_order(n))
-
-    call recur(1, n)
-
-    contains
-
-    recursive subroutine recur(left, right)
-      integer, intent(in) :: left, right
-      integer :: mid
-      integer :: tmp
-      integer :: pos
-      integer :: ptr1, ptr2
-
-      if (left == right) return
-      if (left == right - 1) then
-        if (arr(left) > arr(right)) then
-          tmp = order(right)
-          order(right) = order(left)
-          order(left) = tmp
-        end if
-        return
-      end if
-
-      mid = (left + right) / 2
-      call recur(left, mid)
-      call recur(mid + 1, right)
-
-      ! Merge
-      tmp_order(left: mid) = order(left: mid)
-      ptr1 = left
-      ptr2 = mid + 1
-      do pos = left, right
-        if (arr(tmp_order(ptr1)) <= arr(order(ptr2))) then
-          order(pos) = tmp_order(ptr1)
-          ptr1 = ptr1 + 1
-        else
-          order(pos) = order(ptr2)
-          ptr2 = ptr2 + 1
-        end if
-        if (ptr1 > mid .or. ptr2 > right) then
-          exit
-        end if
-      end do
-      if (ptr1 <= mid) then
-        order(pos + 1: right) = tmp_order(ptr1: mid)
-      end if
-    end subroutine recur
-  end subroutine arg_sort_double
   subroutine arg_sort_int(this, arr, order, n)
     class(utilities_type), intent(in) :: this
     integer, intent(in) :: arr(:)
@@ -104,9 +43,15 @@ module utilities_module
     integer :: i
     integer, allocatable :: tmp_order(:)
 
+    if (n <= 0) then
+      return
+    endif
+    if (allocated(order) .and. size(order) < n) then
+      deallocate(order)
+    endif
     if (.not. allocated(order)) then
       allocate(order(n))
-    end if
+    endif
     do i = 1, n
       order(i) = i
     end do
@@ -142,7 +87,7 @@ module utilities_module
       ptr1 = left
       ptr2 = mid + 1
       do pos = left, right
-        if (arr(tmp_order(ptr1)) <= arr(order(ptr2))) then
+        if (.not. arr(tmp_order(ptr1)) > arr(order(ptr2))) then
           order(pos) = tmp_order(ptr1)
           ptr1 = ptr1 + 1
         else
@@ -158,6 +103,142 @@ module utilities_module
       end if
     end subroutine recur
   end subroutine arg_sort_int
+  subroutine arg_sort_double(this, arr, order, n)
+    class(utilities_type), intent(in) :: this
+    real(DOUBLE), intent(in) :: arr(:)
+    integer, allocatable, intent(out) :: order(:)
+    integer, intent(in) :: n
+    integer :: i
+    integer, allocatable :: tmp_order(:)
+
+    if (n <= 0) then
+      return
+    endif
+    if (allocated(order) .and. size(order) < n) then
+      deallocate(order)
+    endif
+    if (.not. allocated(order)) then
+      allocate(order(n))
+    endif
+    do i = 1, n
+      order(i) = i
+    end do
+    allocate(tmp_order(n))
+
+    call recur(1, n)
+
+    contains
+
+    recursive subroutine recur(left, right)
+      integer, intent(in) :: left, right
+      integer :: mid
+      integer :: tmp
+      integer :: pos
+      integer :: ptr1, ptr2
+
+      if (left == right) return
+      if (left == right - 1) then
+        if (arr(left) > arr(right)) then
+          tmp = order(right)
+          order(right) = order(left)
+          order(left) = tmp
+        end if
+        return
+      end if
+
+      mid = (left + right) / 2
+      call recur(left, mid)
+      call recur(mid + 1, right)
+
+      ! Merge
+      tmp_order(left: mid) = order(left: mid)
+      ptr1 = left
+      ptr2 = mid + 1
+      do pos = left, right
+        if (.not. arr(tmp_order(ptr1)) > arr(order(ptr2))) then
+          order(pos) = tmp_order(ptr1)
+          ptr1 = ptr1 + 1
+        else
+          order(pos) = order(ptr2)
+          ptr2 = ptr2 + 1
+        end if
+        if (ptr1 > mid .or. ptr2 > right) then
+          exit
+        end if
+      end do
+      if (ptr1 <= mid) then
+        order(pos + 1: right) = tmp_order(ptr1: mid)
+      end if
+    end subroutine recur
+  end subroutine arg_sort_double
+  subroutine arg_sort_spin_det(this, arr, order, n)
+    class(utilities_type), intent(in) :: this
+    type(spin_det_type), pointer, intent(in) :: arr(:)
+    integer, allocatable, intent(out) :: order(:)
+    integer, intent(in) :: n
+    integer :: i
+    integer, allocatable :: tmp_order(:)
+
+    if (n <= 0) then
+      return
+    endif
+    if (allocated(order) .and. size(order) < n) then
+      deallocate(order)
+    endif
+    if (.not. allocated(order)) then
+      allocate(order(n))
+    endif
+    do i = 1, n
+      order(i) = i
+    end do
+    allocate(tmp_order(n))
+
+    call recur(1, n)
+
+    contains
+
+    recursive subroutine recur(left, right)
+      integer, intent(in) :: left, right
+      integer :: mid
+      integer :: tmp
+      integer :: pos
+      integer :: ptr1, ptr2
+
+      if (left == right) return
+      if (left == right - 1) then
+        if (arr(left) > arr(right)) then
+          tmp = order(right)
+          order(right) = order(left)
+          order(left) = tmp
+        end if
+        return
+      end if
+
+      mid = (left + right) / 2
+      call recur(left, mid)
+      call recur(mid + 1, right)
+
+      ! Merge
+      tmp_order(left: mid) = order(left: mid)
+      ptr1 = left
+      ptr2 = mid + 1
+      do pos = left, right
+        if (.not. arr(tmp_order(ptr1)) > arr(order(ptr2))) then
+          order(pos) = tmp_order(ptr1)
+          ptr1 = ptr1 + 1
+        else
+          order(pos) = order(ptr2)
+          ptr2 = ptr2 + 1
+        end if
+        if (ptr1 > mid .or. ptr2 > right) then
+          exit
+        end if
+      end do
+      if (ptr1 <= mid) then
+        order(pos + 1: right) = tmp_order(ptr1: mid)
+      end if
+    end subroutine recur
+  end subroutine arg_sort_spin_det
 
   function binary_search_lbound(this, val, arr) result(res)
     class(utilities_type), intent(in) :: this

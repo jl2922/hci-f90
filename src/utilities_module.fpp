@@ -9,13 +9,16 @@ module utilities_module
 
   public :: util ! Namespace for all utilility functions.
 
+  #:set arg_sort_types {'double': 'real(DOUBLE)', 'int': 'integer', 'spin_det': 'type(spin_det_type), pointer'}
+  #:set arg_sort_subroutines 'arg_sort_int, arg_sort_double, arg_sort_spin_det'
+
   type utilities_type
     contains
       procedure, public :: get_free_unit
-      generic, public :: arg_sort => arg_sort_int, arg_sort_double
+      generic, public :: arg_sort => ${arg_sort_subroutines}$
       procedure, public :: n_combinations
       procedure, public :: binary_search_lbound, binary_search_rbound
-      procedure :: arg_sort_int, arg_sort_double
+      procedure :: ${arg_sort_subroutines}$ 
   end type utilities_type
 
   type(utilities_type) :: util
@@ -34,19 +37,24 @@ module utilities_module
     end do
   end function get_free_unit
   
-  #:set shortname {'real(DOUBLE)': 'double', 'integer': 'int'}
-  #:for dtype in ['real(DOUBLE)', 'integer']
-  subroutine arg_sort_${shortname[dtype]}$(this, arr, order, n)
+  #:for arg_sort_type in arg_sort_types
+  subroutine arg_sort_${arg_sort_type}$(this, arr, order, n)
     class(utilities_type), intent(in) :: this
-    ${dtype}$, intent(in) :: arr(:)
+    ${arg_sort_types[arg_sort_type]}$, intent(in) :: arr(:)
     integer, allocatable, intent(out) :: order(:)
     integer, intent(in) :: n
     integer :: i
     integer, allocatable :: tmp_order(:)
 
+    if (n <= 0) then
+      return
+    endif
+    if (allocated(order) .and. size(order) < n) then
+      deallocate(order)
+    endif
     if (.not. allocated(order)) then
       allocate(order(n))
-    end if
+    endif
     do i = 1, n
       order(i) = i
     end do
@@ -82,7 +90,7 @@ module utilities_module
       ptr1 = left
       ptr2 = mid + 1
       do pos = left, right
-        if (arr(tmp_order(ptr1)) <= arr(order(ptr2))) then
+        if (.not. arr(tmp_order(ptr1)) > arr(order(ptr2))) then
           order(pos) = tmp_order(ptr1)
           ptr1 = ptr1 + 1
         else
@@ -97,7 +105,7 @@ module utilities_module
         order(pos + 1: right) = tmp_order(ptr1: mid)
       end if
     end subroutine recur
-  end subroutine arg_sort_${shortname[dtype]}$
+  end subroutine arg_sort_${arg_sort_type}$
   #:endfor
 
   function binary_search_lbound(this, val, arr) result(res)

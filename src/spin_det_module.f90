@@ -15,15 +15,14 @@ module spin_det_module
   public :: operator(==)
   public :: operator(<)
   public :: operator(>)
-  public :: operator(.eor.)
 
   integer :: spin_det_cnt = 0
 
   type spin_det_type
     private
     integer(LONG), allocatable, public :: trunks(:)
-    integer :: n_trunks = -1
-    integer :: n_elec = -1
+    integer, public :: n_trunks = 0
+    integer :: n_elec_cache = -1
     integer, allocatable :: orbitals_cache(:)
     contains
       procedure, public :: get_n_elec
@@ -33,7 +32,6 @@ module spin_det_module
       procedure, public :: resize
       procedure, public :: print
       procedure, public :: from_eor ! eor without allocation for performance.
-      procedure :: clean
       procedure :: destroy_orbitals_cache
       procedure :: trail_zero
   end type spin_det_type
@@ -54,10 +52,6 @@ module spin_det_module
 
   interface operator(>)
     module procedure gt_spin_det
-  end interface
-
-  interface operator(.eor.)
-    module procedure eor_spin_det
   end interface
 
   interface new_spin_det
@@ -87,13 +81,13 @@ module spin_det_module
   function new_spin_det_clone(src) result(res)
     type(spin_det_type), pointer, intent(in) :: src
     type(spin_det_type), pointer :: res
-
+    
     allocate(res)
     if (allocated(src%trunks)) then
       allocate(res%trunks(src%n_trunks))
       res%trunks(:) = src%trunks(:)
       res%n_trunks = src%n_trunks
-      res%n_elec = src%n_elec
+      res%n_elec_cache = src%n_elec_cache
     endif
     spin_det_cnt = spin_det_cnt + 1
   end function new_spin_det_clone
@@ -122,7 +116,7 @@ module spin_det_module
   subroutine delete_spin_det(spin_det)
     type(spin_det_type), pointer, intent(inout) :: spin_det
 
-    call spin_det%clean()
+    spin_det_cnt = spin_det_cnt - 1
     deallocate(spin_det)
     nullify(spin_det)
   end subroutine delete_spin_det
@@ -131,22 +125,11 @@ module spin_det_module
     type(spin_det_type), pointer, intent(inout) :: spin_det_arr(:)
     integer :: i
 
-    do i = 1, size(spin_det_arr)
-      call spin_det_arr(i)%clean()
-    enddo
+    spin_det_cnt = spin_det_cnt - size(spin_det_arr)
     deallocate(spin_det_arr)
     nullify(spin_det_arr)
   end subroutine delete_spin_det_arr
 
-  subroutine clean(this)
-    class(spin_det_type), intent(inout) :: this
-
-    deallocate(this%trunks)
-    call this%destroy_orbitals_cache()
-    spin_det_cnt = spin_det_cnt - 1
-    call flush(6)
-  end subroutine clean
-  
   subroutine destroy_orbitals_cache(this)
     class(spin_det_type), intent(inout) :: this
 
@@ -176,11 +159,11 @@ module spin_det_module
     is_occupied = btest(this%trunks(trunk), i - 1)
   end function get_orbital
   
-  subroutine set_orbital(this, orbital_idx, occupancy)
+  subroutine set_orbital(this, orbital_idx, is_occupied)
     class(spin_det_type), intent(inout) :: this
     integer, intent(in) :: orbital_idx
-    logical, optional, intent(in) :: occupancy ! Default to 1.
-    logical :: original_occupancy
+    logical, optional, intent(in) :: is_occupied ! Default to 1.
+    logical :: orginally_occupied
     integer :: i
     integer :: trunk
 
@@ -195,16 +178,16 @@ module spin_det_module
       i = i - C%TRUNK_SIZE
       trunk = trunk + 1
     enddo
-    original_occupancy = btest(this%trunks(trunk), i - 1)
-    if ((.not. present(occupancy)) .or. occupancy) then
+    orginally_occupied = btest(this%trunks(trunk), i - 1)
+    if ((.not. present(is_occupied)) .or. is_occupied) then
       this%trunks(trunk) = ibset(this%trunks(trunk), i - 1)
-      if (.not. original_occupancy .and. this%n_elec >= 0) then
-        this%n_elec = this%n_elec + 1
+      if (.not. orginally_occupied .and. this%n_elec_cache >= 0) then
+        this%n_elec_cache = this%n_elec_cache + 1
       endif
     else
       this%trunks(trunk) = ibclr(this%trunks(trunk), i - 1)
-      if (original_occupancy .and. this%n_elec >= 0) then
-        this%n_elec = this%n_elec - 1
+      if (orginally_occupied .and. this%n_elec_cache >= 0) then
+        this%n_elec_cache = this%n_elec_cache - 1
       endif
     endif
     call this%destroy_orbitals_cache()
@@ -215,13 +198,13 @@ module spin_det_module
     integer :: n_elec
     integer :: i
 
-    if (this%n_elec >= 0) then
-      n_elec = this%n_elec
+    if (this%n_elec_cache >= 0) then
+      n_elec = this%n_elec_cache
       return
     endif
     if (allocated(this%orbitals_cache)) then
       n_elec = size(this%orbitals_cache)
-      this%n_elec = n_elec
+      this%n_elec_cache = n_elec
       return
     endif
 
@@ -229,7 +212,7 @@ module spin_det_module
     do i = 1, this%n_trunks
       n_elec = n_elec + popcnt(this%trunks(i))
     enddo
-    this%n_elec = n_elec
+    this%n_elec_cache = n_elec
   end function get_n_elec
 
   subroutine get_elec_orbitals(this, orbitals, n_elec_opt)
@@ -252,7 +235,7 @@ module spin_det_module
     else
       n_elec = this%get_n_elec()
     endif
-    this%n_elec = n_elec
+    this%n_elec_cache = n_elec
     allocate(orbitals(n_elec))
     tmp_spin_det => tmp_spin_det_for_get_elec_orbitals
     call tmp_spin_det%resize(this%n_trunks)
@@ -306,7 +289,7 @@ module spin_det_module
       this%n_trunks = n_trunks
     endif
     call this%destroy_orbitals_cache()
-    this%n_elec = -1
+    this%n_elec_cache = -1
   end subroutine resize
 
   subroutine from_eor(this, op1, op2)
@@ -330,7 +313,7 @@ module spin_det_module
    
     call dest%resize(src%n_trunks)
     dest%trunks(:) = src%trunks(:)
-    dest%n_elec = src%n_elec
+    dest%n_elec_cache = src%n_elec_cache
     call dest%destroy_orbitals_cache()
   end subroutine assign_spin_det
 
@@ -381,23 +364,5 @@ module spin_det_module
     enddo
     is_gt = .false.
   end function gt_spin_det
-
-  function eor_spin_det(left, right) result(res)
-    type(spin_det_type), pointer, intent(in) :: left, right
-    type(spin_det_type), pointer :: res
-    integer :: i
-    integer :: n_trunks
-
-    n_trunks = left%n_trunks
-    if (n_trunks /= right%n_trunks) then
-      call backtrace
-      stop 'eor_spin_det input size mismatch.'
-    endif
-
-    res => new_spin_det(n_trunks)
-    do i = 1, n_trunks
-      res%trunks(i) = ieor(left%trunks(i), right%trunks(i))
-    enddo
-  end function eor_spin_det
 
 end module spin_det_module

@@ -50,6 +50,7 @@ module solver_module
       procedure :: find_connected_dets
       procedure :: diagonalize
       procedure :: pt
+      procedure :: pt_det
       procedure :: summary
   end type solver_type
 
@@ -144,7 +145,7 @@ module solver_module
     write (6, '()')
 
     write (6, '(A)') '[VARIATION]'
-    write (6, '(A, G0.10)') 'eps_var: ', this%eps_var
+    write (6, '(A, F0.10)') 'eps_var: ', this%eps_var
     energy_prev = 0
     wf_prev => new_wavefunction(this%wf)
     do i = 1, MAX_VAR_ITERATION
@@ -159,12 +160,12 @@ module solver_module
       end if
 
       call this%diagonalize(energy_cur)
+      this%var_energy = energy_cur
       write (6, '(A, F0.10)') 'Energy: ', energy_cur
       write (6, '()')
       call flush(6)
 
       if (abs(energy_prev - energy_cur) < 1.0e-6) then
-        this%var_energy = energy_cur
         write (6, '(A)') 'Energy change within 1.0e-6. Variation finished.'
         exit
       end if
@@ -172,11 +173,10 @@ module solver_module
       energy_prev = energy_cur
       wf_prev = this%wf
     end do
-    stop
     write (6, '()')
 
     write (6, '(A)') '[PERTURBATION]'
-    write (6, '(A, G0.10)') 'eps_pt: ', this%eps_pt
+    write (6, '(A, F0.10)') 'eps_pt: ', this%eps_pt
     call this%pt()
     write (6, '()')
 
@@ -213,19 +213,19 @@ module solver_module
     
     do i = 1, n_dets_old
       tmp_det => this%wf%get_det(i)
-      call this%find_connected_dets(tmp_det, connected_dets, &
-          & this%eps_var / abs(this%wf%coefs(i)))
+      call this%find_connected_dets( &
+          & tmp_det, this%eps_var / abs(this%wf%coefs(i)), connected_dets)
       call connected_dets%sort_dets()
       call new_dets%merge_sorted_dets(connected_dets)
     end do
     call this%wf%merge_sorted_dets(new_dets)
   end subroutine get_next_dets
 
-  subroutine find_connected_dets(this, det, connected_dets, eps_min)
+  subroutine find_connected_dets(this, det, eps_min, connected_dets)
     class(solver_type), intent(inout) :: this
     type(det_type), pointer, intent(inout) :: det
-    type(wavefunction_type), pointer, intent(out) :: connected_dets
     real(DOUBLE), intent(in) :: eps_min
+    type(wavefunction_type), pointer, intent(out) :: connected_dets
 
     stop 'Default find_connected_dets has not been overloaded.'
   end subroutine find_connected_dets
@@ -236,12 +236,17 @@ module solver_module
     real(DOUBLE), intent(out) :: lowest_eigenvalue
     integer :: n
     integer :: n_up
+    integer :: n_connections
+    integer :: i, j, j_idx
     integer, allocatable :: n_nonzero_elems(:)
+    integer, allocatable :: potential_connections(:)
+    real(DOUBLE) :: H_ij
     real(DOUBLE), allocatable :: lowest_eigenvalues(:)
     real(DOUBLE), allocatable :: initial_vectors(:, :)
     real(DOUBLE), allocatable :: final_vectors(:, :)
     type(linked_list_type__int), pointer :: H_indices
     type(linked_list_type__double), pointer :: H_values
+    type(det_type), pointer :: det_i, det_j
 
     n = this%wf%n
     n_up = this%n_up
@@ -254,7 +259,26 @@ module solver_module
     H_values => new_linked_list__double()
     n_nonzero_elems = 0
     write (6, '(A)') 'Generating sparse hamiltonian...'
-    call generate_sparse_hamiltonian()
+    ! call generate_sparse_hamiltonian()
+    call this%wf%find_potential_connections_setup()
+    do i = 1, n
+      det_i => this%wf%get_det(i)
+      call this%wf%find_potential_connections( &
+          & det_i, potential_connections, n_connections)
+      do j_idx = 1, n_connections
+        j = potential_connections(j_idx)
+        if (j < i) cycle
+        call this%wf%find_potential_connections_post_process(j)
+        det_j => this%wf%get_det(j)
+        H_ij = this%get_hamiltonian_elem(det_i, det_j)
+        if (abs(H_ij) > C%EPS) then
+          call H_indices%append(j)
+          call H_values%append(H_ij)
+          n_nonzero_elems(i) = n_nonzero_elems(i) + 1
+        endif
+      enddo
+    enddo
+    print *, sum(n_nonzero_elems)
 
     allocate(lowest_eigenvalues(1))
     allocate(initial_vectors(n, 1))
@@ -415,9 +439,7 @@ module solver_module
           gap = gap * 5 / 11
         end if
       end do
-      call tmp_elem%clean()
-      deallocate(tmp_elem)
-      nullify(tmp_elem)
+      call delete(tmp_elem)
     end subroutine sort_by_first_arg
 
 !=============================================================================== 
@@ -645,7 +667,76 @@ module solver_module
     this%pt_det_energy = 0.0_DOUBLE
     this%pt_st_energy = 0.0_DOUBLE
     this%pt_st_uncert = 0.0_DOUBLE
+
+    call this%pt_det()
   end subroutine pt
+
+  subroutine pt_det(this)
+    class(solver_type), intent(inout) :: this
+    logical :: is_added
+    integer :: i, j, k, a
+    integer :: j_idx
+    integer :: n_connections
+    real(DOUBLE) :: E_a
+    real(DOUBLE) :: H_aj
+    real(DOUBLE) :: eps_pt
+    real(DOUBLE) :: pt_energy
+    real(DOUBLE) :: var_energy
+    real(DOUBLE) :: sum_a
+    real(DOUBLE) :: term
+    type(det_type), pointer :: det_i, det_j, det_a
+    type(wavefunction_type), pointer :: connected_dets
+    integer, allocatable :: potential_connections(:)
+
+    pt_energy = 0.0_DOUBLE
+    var_energy = this%var_energy
+    eps_pt = this%eps_pt
+    call this%wf%find_potential_connections_setup()
+    do i = 1, this%wf%n
+      det_i => this%wf%get_det(i)
+      call this%find_connected_dets( &
+          & det_i, eps_pt / abs(this%wf%coefs(i)), connected_dets)
+      do a = 1, connected_dets%n
+        sum_a = 0.0_DOUBLE
+        is_added = .false.
+        det_a => connected_dets%get_det(a)
+        if (det_a == det_i) cycle
+        call this%wf%find_potential_connections( &
+            & det_a, potential_connections, n_connections)
+        do j_idx = 1, n_connections
+          j = potential_connections(j_idx)
+          call this%wf%find_potential_connections_post_process(j)
+          det_j => this%wf%get_det(j)
+          if (det_a == det_j) then
+            is_added = .true.
+            exit
+          endif
+          H_aj = this%get_hamiltonian_elem(det_a, det_j)
+          if (abs(H_aj) < C%EPS) then
+            cycle
+          endif
+          term = H_aj * this%wf%coefs(j)
+          if (abs(term) < eps_pt) then
+            cycle
+          else
+            if (j < i) then
+              is_added = .true.
+              exit
+            else
+              sum_a = sum_a + term
+            endif
+          endif
+        enddo
+        if (is_added) then
+          cycle
+        endif
+        E_a = this%get_hamiltonian_elem(det_a, det_a)
+        pt_energy = pt_energy + sum_a**2 / (var_energy - E_a)
+      enddo
+      call delete(connected_dets)
+    enddo
+    this%pt_det_energy = pt_energy
+  end subroutine pt_det
 
   subroutine summary(this)
     class(solver_type), intent(inout) :: this
@@ -655,11 +746,12 @@ module solver_module
 
     write (6, '(A, F0.10)') 'Variational Energy: ', this%var_energy
     write (6, '(A, G0.10)') 'Number of variational dets: ', this%wf%n
-    write (6, '(A, F0.10)') 'Deterministic PT Energy: ', this%pt_det_energy
+    write (6, '(A, F0.10)') 'Deterministic PT Correction: ', this%pt_det_energy
     write (6, '(A, F0.10, A, F0.10)') &
-        & 'Stochastic PT Energy: ', this%pt_st_energy, ' +- ', this%pt_st_uncert
+        & 'Stochastic PT Correction: ', this%pt_st_energy, &
+        & ' +- ', this%pt_st_uncert
     write (6, '(A, F0.10, A, F0.10)') &
-        & 'Total Energy: ', total_energy, ' +- ', this%pt_st_uncert
+        & 'Final Energy: ', total_energy, ' +- ', this%pt_st_uncert
   end subroutine summary
 
 end module solver_module

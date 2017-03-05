@@ -538,12 +538,10 @@ module heg_solver_module
     end do
   end function get_gamma_exp
 
-  subroutine find_connected_dets(this, det, connected_dets, eps_min)
+  subroutine find_connected_dets(this, det, eps_min, connected_dets)
     class(heg_solver_type), intent(inout) :: this
     type(det_type), pointer, intent(inout) :: det
-    type(wavefunction_type), pointer, intent(out) :: connected_dets
     real(DOUBLE), intent(in) :: eps_min
-
     integer :: n_elec
     integer :: n_up, n_dn
     integer :: n_orb
@@ -553,6 +551,8 @@ module heg_solver_module
     integer :: i, j
     type(INT_PAIR), allocatable :: pq_pairs(:)
     type(INT_PAIR), allocatable :: rs_pairs(:)
+    type(det_type), pointer :: tmp_det
+    type(wavefunction_type), pointer, intent(out) :: connected_dets
 
     if (this%max_abs_H < eps_min) then
       connected_dets => new_wavefunction(1)
@@ -562,10 +562,10 @@ module heg_solver_module
     n_up = this%n_up
     n_dn = this%n_dn
     n_orb = this%n_orb
+    tmp_det => new_det(n_orb)
     connected_dets => new_wavefunction(this%max_connected_dets)
     call get_pq_pairs(pq_pairs, n_pq_pairs)
-    allocate(rs_pairs(this%max_n_rs_pairs))
-
+    allocate(rs_pairs(this%max_n_rs_pairs + 1))
     do i = 1, n_pq_pairs
       p = pq_pairs(i)%i1
       q = pq_pairs(i)%i2
@@ -685,7 +685,6 @@ module heg_solver_module
         integer, intent(in) :: p, q, r, s
         type(wavefunction_type), pointer, intent(inout) :: connected_dets
         integer :: n_orb
-        type(det_type), pointer :: tmp_det
 
         n_orb = this%n_orb
         if (r > n_orb) then
@@ -699,7 +698,7 @@ module heg_solver_module
           if (det%up%get_orbital(s)) return
         end if
 
-        tmp_det => new_det(det)
+        tmp_det = det
         if (p <= n_orb) then
           call tmp_det%up%set_orbital(p, .false.)
         else
@@ -721,7 +720,6 @@ module heg_solver_module
           call tmp_det%dn%set_orbital(s - n_orb, .true.)
         end if
         call connected_dets%append_det(tmp_det)
-        call delete(tmp_det)
       end subroutine
 
   end subroutine find_connected_dets

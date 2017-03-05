@@ -15,17 +15,15 @@ module det_module
   public :: operator(==)
   public :: operator(<)
   public :: operator(>)
-  public :: operator(.eor.)
 
   type det_type
     private
     type(spin_det_type), pointer, public :: up => null()
     type(spin_det_type), pointer, public :: dn => null()
-    ! integer, pointer, public :: elec_orbitals(:)
     contains
       procedure, public :: resize
       procedure, public :: print
-      procedure, public :: from_eor ! eor without allocation for performance.
+      procedure, public :: from_eor
   end type det_type
 
   interface new_det
@@ -52,10 +50,6 @@ module det_module
 
   interface operator(>)
     module procedure lt_det
-  end interface
-
-  interface operator(.eor.)
-    module procedure eor_det
   end interface
 
   contains
@@ -94,8 +88,12 @@ module det_module
     integer :: i
 
     do i = 1, size(arr)
-      call delete(arr(i)%up)
-      call delete(arr(i)%dn)
+      if (associated(arr(i)%up)) then
+        call delete(arr(i)%up)
+      endif
+      if (associated(arr(i)%dn)) then
+        call delete(arr(i)%dn)
+      endif
     enddo
     deallocate(arr)
     nullify(arr)
@@ -111,9 +109,14 @@ module det_module
 
   subroutine print(this)
     class(det_type), intent(in) :: this
+    integer :: i
 
-    call this%up%print()
-    call this%dn%print()
+    do i = 1, this%up%n_trunks
+      write (6, '(A, I0, A, B0.63)') 'up#', i, ': ', this%up%trunks(i)
+    enddo
+    do i = 1, this%dn%n_trunks
+      write (6, '(A, I0, A, B0.63)') 'dn#', i, ': ', this%dn%trunks(i)
+    enddo
   end subroutine print
 
   subroutine from_eor(this, det1, det2)
@@ -125,22 +128,22 @@ module det_module
   end subroutine from_eor
 
   subroutine assign_det(dest, src)
-    class(det_type), pointer, intent(in) :: src
-    class(det_type), pointer, intent(out) :: dest
+    type(det_type), pointer, intent(in) :: src
+    type(det_type), pointer, intent(out) :: dest
 
     dest%up = src%up
     dest%dn = src%dn
   end subroutine assign_det
 
   function equal_det(left, right) result(is_equal)
-    class(det_type), pointer, intent(in) :: left, right
+    type(det_type), pointer, intent(in) :: left, right
     logical :: is_equal
 
     is_equal = (left%up == right%up) .and. (left%dn == right%dn)
   end function equal_det
 
   function lt_det(left, right) result(is_lt)
-    class(det_type), pointer, intent(in) :: left, right
+    type(det_type), pointer, intent(in) :: left, right
     logical :: is_lt
 
     is_lt = (left%up < right%up) .or. &
@@ -148,20 +151,11 @@ module det_module
   end function lt_det
   
   function gt_det(left, right) result(is_gt)
-    class(det_type), pointer, intent(in) :: left, right
+    type(det_type), pointer, intent(in) :: left, right
     logical :: is_gt
 
-    is_gt = (left%up < right%up) .or. &
-        & ((left%up == right%up) .and. (left%dn < right%dn))
+    is_gt = (left%up > right%up) .or. &
+        & ((left%up == right%up) .and. (left%dn > right%dn))
   end function gt_det
-
-  function eor_det(left, right) result(res)
-    type(det_type), pointer, intent(in) :: left, right
-    type(det_type), pointer :: res
-    
-    allocate(res)
-    res%up => left%up .eor. right%up
-    res%dn => left%dn .eor. right%dn
-  end function eor_det
 
 end module det_module
