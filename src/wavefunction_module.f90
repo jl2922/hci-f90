@@ -370,7 +370,9 @@ module wavefunction_module
     integer :: i, j, idx 
     integer :: left, right
     integer :: n, n_up
-    integer, allocatable :: tmp_connections(:)
+    integer :: n_nonzero_connections
+    integer :: n_diff
+    integer, allocatable :: nonzero_connections(:)
     integer, allocatable :: up_elec_orbitals(:)
     integer, allocatable :: order(:)
     type(spin_det_type), pointer :: tmp_spin_det
@@ -378,12 +380,12 @@ module wavefunction_module
     n_connections = 0
     n = this%n
     n_up = this%n_up
-    allocate(tmp_connections(n))
+    allocate(nonzero_connections(n))
     allocate(order(n))
     if (.not. allocated(potential_connections)) then
       allocate(potential_connections(n))
     endif
-    this%is_included = .false.
+    ! this%is_included = .false.
 
     ! beta.
     left = util%binary_search_lbound(det%dn, this%beta)
@@ -392,7 +394,7 @@ module wavefunction_module
       idx = this%beta_idx(i)
       if (.not. this%is_included(idx)) then
         n_connections = n_connections + 1
-        tmp_connections(n_connections) = idx
+        potential_connections(n_connections) = idx
         this%is_included(idx) = .true.
       endif
     enddo
@@ -409,19 +411,37 @@ module wavefunction_module
         idx = this%alpha_m1_idx(i)
         if (.not. this%is_included(idx)) then
           n_connections = n_connections + 1
-          tmp_connections(n_connections) = idx
+          potential_connections(n_connections) = idx
           this%is_included(idx) = .true.
         endif
       enddo
       call tmp_spin_det%set_orbital(up_elec_orbitals(j), .true.)
     enddo
 
-    ! Sort in order of increasing indices (for deterministic pt).
-    call util%arg_sort(tmp_connections, order, n_connections)
+    n_nonzero_connections = 0
     do i = 1, n_connections
-      potential_connections(i) = tmp_connections(order(i))
-      this%is_included(order(i)) = .false.
+      idx = potential_connections(i)
+      this%is_included(idx) = .false.
+      n_diff = det%get_n_diff_orbitals(this%get_det(idx))
+      ! print *, idx, n_diff
+      if (n_diff <= 4) then
+        n_nonzero_connections = n_nonzero_connections + 1
+        nonzero_connections(n_nonzero_connections) = idx
+      endif
     enddo
+    ! Sort in order of increasing indices (for deterministic pt).
+    call util%arg_sort(nonzero_connections, order, n_nonzero_connections)
+    do i = 1, n_nonzero_connections
+      ! potential_connections(i) = nonzero_connections(i)
+      potential_connections(i) = nonzero_connections(order(i))
+      ! this%is_included(order(i)) = .false.
+      ! potential_connections(i) = nonzero_connections(i)
+      ! this%is_included(i) = .false.
+    enddo
+    ! call det%print()
+    ! print *, potential_connections(1:n_nonzero_connections)
+    ! stop
+    n_connections = n_nonzero_connections
   end subroutine find_potential_connections
 
   subroutine find_potential_connections_post_process(this, j)

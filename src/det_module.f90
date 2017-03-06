@@ -24,6 +24,7 @@ module det_module
       procedure, public :: resize
       procedure, public :: print
       procedure, public :: from_eor
+      procedure, public :: get_n_diff_orbitals
   end type det_type
 
   interface new_det
@@ -126,6 +127,15 @@ module det_module
     call this%up%from_eor(det1%up, det2%up)
     call this%dn%from_eor(det1%dn, det2%dn)
   end subroutine from_eor
+
+  function get_n_diff_orbitals(this, op) result(n_diff)
+    class(det_type), intent(inout) :: this
+    type(det_type), pointer, intent(in) :: op
+    integer :: n_diff
+
+    n_diff = this%up%get_n_diff_orbitals(op%up) + &
+        & this%dn%get_n_diff_orbitals(op%dn)
+  end function get_n_diff_orbitals
 
   subroutine assign_det(dest, src)
     type(det_type), pointer, intent(in) :: src

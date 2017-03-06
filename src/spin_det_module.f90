@@ -32,11 +32,13 @@ module spin_det_module
       procedure, public :: resize
       procedure, public :: print
       procedure, public :: from_eor ! eor without allocation for performance.
+      procedure, public :: get_n_diff_orbitals
       procedure :: destroy_orbitals_cache
       procedure :: trail_zero
   end type spin_det_type
 
   type(spin_det_type), target :: tmp_spin_det_for_get_elec_orbitals
+  type(spin_det_type), target :: tmp_spin_det_for_get_n_diff_orbitals
 
   interface assignment(=)
     module procedure assign_spin_det
@@ -306,6 +308,20 @@ module spin_det_module
       this%trunks(i) = ieor(op1%trunks(i), op2%trunks(i))
     enddo
   end subroutine from_eor
+
+  function get_n_diff_orbitals(this, op) result(n_diff)
+    class(spin_det_type), intent(inout) :: this
+    type(spin_det_type), pointer, intent(inout) :: op
+    integer :: n_diff
+    integer :: i
+    integer(LONG) :: eor_trunk
+    
+    n_diff = 0
+    do i = 1, this%n_trunks
+      eor_trunk = ieor(this%trunks(i), op%trunks(i))
+      n_diff = n_diff + popcnt(eor_trunk)
+    enddo
+  end function get_n_diff_orbitals
 
   subroutine assign_spin_det(dest, src)
     type(spin_det_type), pointer, intent(in) :: src
