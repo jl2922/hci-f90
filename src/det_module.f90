@@ -21,7 +21,6 @@ module det_module
     type(spin_det_type), pointer, public :: up => null()
     type(spin_det_type), pointer, public :: dn => null()
     contains
-      procedure, public :: resize
       procedure, public :: print
       procedure, public :: from_eor
       procedure, public :: get_n_diff_orbitals
@@ -29,7 +28,7 @@ module det_module
 
   interface new_det
     module procedure new_det_clone
-    module procedure new_det_by_n_orb
+    module procedure new_det_by_n_orbs
   end interface new_det
 
   interface delete
@@ -50,7 +49,7 @@ module det_module
   end interface
 
   interface operator(>)
-    module procedure lt_det
+    module procedure gt_det
   end interface
 
   contains
@@ -64,60 +63,44 @@ module det_module
     det%dn => new_spin_det(src%dn)
   end function new_det_clone
 
-  function new_det_by_n_orb(n_orb) result(det)
-    integer, intent(in) :: n_orb 
+  function new_det_by_n_orbs(n_orbs) result(det)
+    integer, intent(in) :: n_orbs
     type(det_type), pointer :: det
-    integer :: n_trunks
 
     allocate(det)
-    n_trunks = ceiling(n_orb * 1.0 / C%TRUNK_SIZE)
-    det%up => new_spin_det(n_trunks)
-    det%dn => new_spin_det(n_trunks)
-  end function new_det_by_n_orb
+    det%up => new_spin_det(n_orbs)
+    det%dn => new_spin_det(n_orbs)
+  end function new_det_by_n_orbs
 
   subroutine delete_det(det)
     type(det_type), pointer :: det
 
+    if (.not. associated(det)) return
     call delete(det%up)
     call delete(det%dn)
     deallocate(det)
     nullify(det)
   end subroutine delete_det
 
-  subroutine delete_det_arr(arr)
-    type(det_type), pointer :: arr(:)
+  subroutine delete_det_arr(det_arr)
+    type(det_type), pointer :: det_arr(:)
     integer :: i
 
-    do i = 1, size(arr)
-      if (associated(arr(i)%up)) then
-        call delete(arr(i)%up)
-      endif
-      if (associated(arr(i)%dn)) then
-        call delete(arr(i)%dn)
-      endif
+    if (.not. associated(det_arr)) return
+    do i = 1, size(det_arr)
+      call delete(det_arr(i)%up)
+      call delete(det_arr(i)%dn)
     enddo
-    deallocate(arr)
-    nullify(arr)
+    deallocate(det_arr)
+    nullify(det_arr)
   end subroutine delete_det_arr
-
-  subroutine resize(this, n_trunks)
-    class(det_type), intent(inout) :: this
-    integer, intent(in) :: n_trunks
-
-    call this%up%resize(n_trunks)
-    call this%dn%resize(n_trunks)
-  end subroutine resize
 
   subroutine print(this)
     class(det_type), intent(in) :: this
     integer :: i
 
-    do i = 1, this%up%n_trunks
-      write (6, '(A, I0, A, B0.63)') 'up#', i, ': ', this%up%trunks(i)
-    enddo
-    do i = 1, this%dn%n_trunks
-      write (6, '(A, I0, A, B0.63)') 'dn#', i, ': ', this%dn%trunks(i)
-    enddo
+    call this%up%print()
+    call this%dn%print()
   end subroutine print
 
   subroutine from_eor(this, det1, det2)

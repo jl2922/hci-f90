@@ -7,7 +7,7 @@ module solver_controller_module
 
   private
 
-  public :: solver_controller
+  public :: solver_controller_instance
 
   integer, parameter :: SYSTEM_NAME_LENGTH = 64
 
@@ -18,7 +18,7 @@ module solver_controller_module
       procedure :: get_system_name
   end type solver_controller_type
 
-  type(solver_controller_type) :: solver_controller
+  type(solver_controller_type) :: solver_controller_instance
 
   contains
 
@@ -34,7 +34,7 @@ module solver_controller_module
 
     select case (system_name)
     case ('heg')
-      call heg_solver%solve(config_file_unit)
+      call heg_solver_instance%solve(config_file_unit)
     case default
       stop 'Unrecognized system'
     end select

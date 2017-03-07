@@ -203,7 +203,6 @@ module solver_module
     integer :: i, j
     integer :: n_dets_old
     integer, allocatable :: indices_old(:)
-    real(DOUBLE), allocatable :: tmp_coefs(:)
     type(det_type), pointer :: tmp_det
     type(wavefunction_type), pointer :: connected_dets
     type(wavefunction_type), pointer :: new_dets
@@ -214,7 +213,7 @@ module solver_module
     do i = 1, n_dets_old
       tmp_det => this%wf%get_det(i)
       call this%find_connected_dets( &
-          & tmp_det, this%eps_var / abs(this%wf%coefs(i)), connected_dets)
+          & tmp_det, this%eps_var / abs(this%wf%get_coef(i)), connected_dets)
       call connected_dets%sort_dets()
       call new_dets%merge_sorted_dets(connected_dets)
     end do
@@ -268,7 +267,6 @@ module solver_module
       do j_idx = 1, n_connections
         j = potential_connections(j_idx)
         if (j < i) cycle
-        call this%wf%find_potential_connections_post_process(j)
         det_j => this%wf%get_det(j)
         H_ij = this%get_hamiltonian_elem(det_i, det_j)
         if (abs(H_ij) > C%EPS) then
@@ -278,17 +276,20 @@ module solver_module
         endif
       enddo
     enddo
-    print *, sum(n_nonzero_elems)
 
     allocate(lowest_eigenvalues(1))
     allocate(initial_vectors(n, 1))
     allocate(final_vectors(n, 1))
-    initial_vectors(:, 1) = this%wf%coefs(:)
+    do i = 1, n
+      initial_vectors(i, 1) = this%wf%get_coef(i)
+    enddo
     write (6, '(A)') 'Performing davidson diagonalization...'
     call davidson_sparse(n, 1, final_vectors, lowest_eigenvalues, &
         & H_indices, n_nonzero_elems, H_values, initial_vectors)
     lowest_eigenvalue = lowest_eigenvalues(1)
-    this%wf%coefs(:) = final_vectors(:, 1)
+    do i = 1, n
+      call this%wf%set_coef(i, final_vectors(i, 1))
+    enddo
     call delete(H_indices)
     call delete(H_values)
 
@@ -353,8 +354,8 @@ module solver_module
         is_included(i) = .true.
 
         ! 2 up.
-        left = util%binary_search_lbound(det_i%dn, beta)
-        right = util%binary_search_rbound(det_i%dn, beta)
+        left = util%search%binary_search_lbound(det_i%dn, beta)
+        right = util%search%binary_search_rbound(det_i%dn, beta)
         do k = left, right
           j = beta_idx(k)
           if (.not. beta(k) == det_i%dn) cycle
@@ -375,8 +376,8 @@ module solver_module
         call tmp_spin_det%get_elec_orbitals(up_elec_orbitals, n_up)
         do ii = 1, n_up
           call tmp_spin_det%set_orbital(up_elec_orbitals(ii), .false.)
-          left = util%binary_search_lbound(tmp_spin_det, alpha_m1)
-          right = util%binary_search_rbound(tmp_spin_det, alpha_m1)
+          left = util%search%binary_search_lbound(tmp_spin_det, alpha_m1)
+          right = util%search%binary_search_rbound(tmp_spin_det, alpha_m1)
           do k = left, right
             j = alpha_m1_idx(k)
             if (j > i .and. (.not. is_included(j))) then
@@ -394,7 +395,7 @@ module solver_module
         end do
 
         ! Add to H.
-        call util%arg_sort(tmp_H_indices, order, cnt)
+        call util%sort%arg_sort(tmp_H_indices, order, cnt)
         do ii = 1, cnt
           j = order(ii)
           call H_indices%append(tmp_H_indices(j))
@@ -695,7 +696,7 @@ module solver_module
     do i = 1, this%wf%n
       det_i => this%wf%get_det(i)
       call this%find_connected_dets( &
-          & det_i, eps_pt / abs(this%wf%coefs(i)), connected_dets)
+          & det_i, eps_pt / abs(this%wf%get_coef(i)), connected_dets)
       do a = 1, connected_dets%n
         sum_a = 0.0_DOUBLE
         is_added = .false.
@@ -705,7 +706,6 @@ module solver_module
             & det_a, potential_connections, n_connections)
         do j_idx = 1, n_connections
           j = potential_connections(j_idx)
-          call this%wf%find_potential_connections_post_process(j)
           det_j => this%wf%get_det(j)
           if (det_a == det_j) then
             is_added = .true.
@@ -715,7 +715,7 @@ module solver_module
           if (abs(H_aj) < C%EPS) then
             cycle
           endif
-          term = H_aj * this%wf%coefs(j)
+          term = H_aj * this%wf%get_coef(j)
           if (abs(term) < eps_pt) then
             cycle
           else

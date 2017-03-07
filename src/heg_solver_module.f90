@@ -12,7 +12,7 @@ module heg_solver_module
   
   private
 
-  public :: heg_solver
+  public :: heg_solver_instance
 
   type heg_data_type
     integer :: n_diff
@@ -42,7 +42,7 @@ module heg_solver_module
       procedure :: setup
   end type heg_solver_type
 
-  type(heg_solver_type) :: heg_solver
+  type(heg_solver_type) :: heg_solver_instance
 
   type(det_type), target :: tmp_det_for_get_hamiltonian_elem
   type(spin_det_type), target :: tmp_up_for_get_hamiltonian_elem
@@ -100,12 +100,13 @@ module heg_solver_module
     n_dn = this%n_dn
     this%max_connected_dets = &
         & 1 + n_up * n_dn * (n_orb - n_dn) * (n_orb - n_up) &
-        & + util%n_combinations(n_up, 2) + util%n_combinations(n_orb - n_up, 2) &
-        & + util%n_combinations(n_dn, 2) + util%n_combinations(n_orb - n_dn, 2)
+        & + util%combinatorics%C(n_up, 2) &
+        & + util%combinatorics%C(n_orb - n_up, 2) &
+        & + util%combinatorics%C(n_dn, 2) &
+        & + util%combinatorics%C(n_orb - n_dn, 2)
 
     ! Setup HF determinant.
     this%wf => new_wavefunction(1)
-    this%wf%coefs(1) = 1.0_DOUBLE
     tmp_det => new_det(n_orb)
     do i = 1, this%n_up
       call tmp_det%up%set_orbital(i, .true.)
@@ -114,6 +115,7 @@ module heg_solver_module
       call tmp_det%dn%set_orbital(i, .true.)
     end do
     call this%wf%append_det(tmp_det)
+    call this%wf%set_coef(1, 1.0_DOUBLE)
     HF_energy = this%get_hamiltonian_elem(tmp_det, tmp_det)
     call delete(tmp_det)
     write (6, '(A, F0.10)') 'HF energy: ', HF_energy
@@ -154,7 +156,7 @@ module heg_solver_module
     end do
     allocate(order(n_orb))
     
-    call util%arg_sort(temp_k_length2, order, n_orb)
+    call util%sort%arg_sort(temp_k_length2, order, n_orb)
     allocate(this%heg%k_vectors(3, n_orb))
     do i = 1, n_orb
       this%heg%k_vectors(:, i) = temp_k_vectors(:, order(i))
@@ -397,7 +399,7 @@ module heg_solver_module
               & diff_pq_idx(1), diff_pq_idx(2), diff_pq_idx(3), 1: pq_cnt)%double
           hci_queue_copy(1: pq_cnt) = this%heg%same_spin( &
               & diff_pq_idx(1), diff_pq_idx(2), diff_pq_idx(3), 1: pq_cnt)
-          call util%arg_sort(-abs_H_copy, order, pq_cnt)
+          call util%sort%arg_sort(-abs_H_copy, order, pq_cnt)
           do i = 1, pq_cnt
             this%heg%same_spin( &
                 & diff_pq_idx(1), diff_pq_idx(2), diff_pq_idx(3), i) &
@@ -440,7 +442,7 @@ module heg_solver_module
       end do
     end do
     if (opposite_spin_cnt > 0) then
-      call util%arg_sort(-abs_H_copy, order, opposite_spin_cnt)
+      call util%sort%arg_sort(-abs_H_copy, order, opposite_spin_cnt)
       hci_queue_copy(1: opposite_spin_cnt) = &
           & this%heg%opposite_spin(1: opposite_spin_cnt)
       do i = 1, opposite_spin_cnt

@@ -4,6 +4,6 @@ program hci
 
   implicit none
 
-  call solver_controller%start()
+  call solver_controller_instance%start()
 
 end program hci

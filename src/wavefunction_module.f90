@@ -17,22 +17,23 @@ module wavefunction_module
 
   type wavefunction_type
     private
-    integer, public :: n = 0 ! n <= 2nd rank of up/dn.
-    integer, public :: n_up = 0
+    integer, public :: n = 0
     logical, public :: is_sorted = .true. ! True if sorted in increasing order.
+    real(DOUBLE), allocatable :: coefs(:)
+    type(det_type), pointer :: dets(:) => null()
+    type(spin_det_type), pointer :: alpha_m1(:) => null()
+    type(spin_det_type), pointer :: beta(:) => null()
+    integer, allocatable :: alpha_m1_idx(:), beta_idx(:)
     logical, allocatable :: is_included(:)
-    type(det_type), pointer, public :: dets(:) => null()
-    real(DOUBLE), allocatable, public :: coefs(:)
-    type(spin_det_type), pointer, public :: alpha_m1(:) => null()
-    type(spin_det_type), pointer, public :: beta(:) => null()
-    integer, allocatable, public :: alpha_m1_idx(:), beta_idx(:)
+    integer :: n_up = 0
     contains
       procedure, public :: reserve_dets
       procedure, public :: append_det
       procedure, public :: find_potential_connections
       procedure, public :: find_potential_connections_setup
-      procedure, public :: find_potential_connections_post_process
+      procedure, public :: get_coef
       procedure, public :: get_det
+      procedure, public :: set_coef
       procedure, public :: set_det
       procedure, public :: sort_dets ! Into ascending order.
       procedure, public :: merge_sorted_dets
@@ -40,7 +41,7 @@ module wavefunction_module
   end type wavefunction_type
 
   interface new_wavefunction
-    module procedure new_wavefunction_default
+    module procedure new_wavefunction_empty
     module procedure new_wavefunction_reserve
     module procedure new_wavefunction_clone
   end interface new_wavefunction
@@ -53,21 +54,19 @@ module wavefunction_module
     module procedure delete_wavefunction
   end interface delete
 
-  type(spin_det_type), target :: tmp_spin_det_for_find_potential_connections
-
   contains
 
-  function new_wavefunction_default() result(wf)
+  function new_wavefunction_empty() result(wf)
     type(wavefunction_type), pointer :: wf
 
     allocate(wf)
-  end function new_wavefunction_default
+  end function new_wavefunction_empty
 
   function new_wavefunction_clone(src) result(wf)
     type(wavefunction_type), pointer, intent(in) :: src
     type(wavefunction_type), pointer :: wf
 
-    allocate(wf)
+    wf => new_wavefunction_empty()
     wf = src
   end function new_wavefunction_clone
 
@@ -75,7 +74,7 @@ module wavefunction_module
     integer, intent(in) :: capacity
     type(wavefunction_type), pointer :: wf
 
-    allocate(wf)
+    wf => new_wavefunction_empty()
     allocate(wf%dets(capacity))
     allocate(wf%coefs(capacity))
     wf%coefs(:) = 0
@@ -84,12 +83,10 @@ module wavefunction_module
   subroutine delete_wavefunction(wf)
     type(wavefunction_type), pointer :: wf
     
+    if (.not. associated(wf)) return
     call delete(wf%dets)
-    if (allocated(wf%coefs)) deallocate(wf%coefs)
-    if (associated(wf%alpha_m1)) then
-      call delete(wf%alpha_m1)
-      call delete(wf%beta)
-    endif
+    call delete(wf%alpha_m1)
+    call delete(wf%beta)
     deallocate(wf)
     nullify(wf)
   end subroutine delete_wavefunction
@@ -145,6 +142,18 @@ module wavefunction_module
     det => this%dets(idx)
   end function get_det
 
+  function get_coef(this, idx) result(coef)
+    class(wavefunction_type), intent(inout) :: this
+    integer, intent(in) :: idx
+    real(DOUBLE) :: coef
+
+    if (idx > this%n) then
+      call backtrace
+      stop 'get_coef with idx out of bound.'
+    endif
+    coef = this%coefs(idx)
+  end function get_coef
+
   subroutine set_det(this, idx, src)
     class(wavefunction_type), intent(inout) :: this
     integer, intent(in) :: idx
@@ -160,74 +169,42 @@ module wavefunction_module
     end if
   end subroutine set_det
 
+  subroutine set_coef(this, idx, coef)
+    class(wavefunction_type), intent(inout) :: this
+    integer, intent(in) :: idx
+    real(DOUBLE), intent(in) :: coef
+
+    if (idx > this%n) then
+      call backtrace
+      stop 'set_coef with idx out of bound.'
+    endif
+    this%coefs(idx) = coef
+  end subroutine set_coef
+
   subroutine sort_dets(this)
     class(wavefunction_type), intent(inout) :: this
     integer :: i
     integer :: n
     integer, allocatable :: order(:)
-    integer, allocatable :: tmp_order(:)
     type(det_type), pointer :: sorted_dets(:)
+    real(DOUBLE), allocatable :: sorted_coefs(:)
+    type(det_type), pointer :: det_ptr
 
     n = this%n
     if (n == 0) return
-    allocate(order(n))
-    allocate(tmp_order(n))
-    do i = 1, n
-      order(i) = i
-    enddo
-
-    call recur(1, n)
-
+    call util%sort%arg_sort(this%dets, order, n)
     allocate(sorted_dets(n))
+    allocate(sorted_coefs(n))
     do i = 1, n
-      sorted_dets(i) = this%dets(order(i))
+      det_ptr => sorted_dets(i)
+      det_ptr = this%get_det(order(i))
+      sorted_coefs(i) = this%get_coef(i)
     enddo
-    deallocate(this%dets)
+    call delete(this%dets)
+    nullify(det_ptr)
     this%dets => sorted_dets
+    call move_alloc(sorted_coefs, this%coefs)
     this%is_sorted = .true.
-
-    contains
-
-    recursive subroutine recur(left, right)
-      integer, intent(in) :: left, right
-      integer :: tmp
-      integer :: mid
-      integer :: ptr1, ptr2
-      integer :: pos
-
-      if (left == right) return
-      if (left == right - 1) then
-        if (this%dets(right) < this%dets(left)) then
-          tmp = order(left)
-          order(left) = order(right)
-          order(right) = tmp
-        endif
-        return
-      endif
-
-      mid = (left + right) / 2
-      call recur(left, mid)
-      call recur(mid + 1, right)
-
-      tmp_order(left: mid) = order(left: mid)
-      ptr1 = left
-      ptr2 = mid + 1
-      pos = left
-      do while (pos < right .and. ptr1 <= mid .and. ptr2 <= right)
-        if (this%dets(tmp_order(ptr1)) < this%dets(order(ptr2))) then
-          order(pos) = tmp_order(ptr1)
-          ptr1 = ptr1 + 1
-        else
-          order(pos) = order(ptr2)
-          ptr2 = ptr2 + 1
-        endif
-        pos = pos + 1
-      enddo
-      if (ptr1 <= mid) then
-        order(pos: right) = tmp_order(ptr1: mid)
-      endif
-    end subroutine recur
-
   end subroutine sort_dets
 
   subroutine merge_sorted_dets(this, dets)
@@ -244,6 +221,7 @@ module wavefunction_module
     integer, allocatable :: merged_dets_indices(:)
     integer :: ptr_this, ptr_dets
     type(det_type), pointer :: new_dets(:)
+    type(det_type), pointer :: det_ptr
     real(DOUBLE), allocatable :: new_coefs(:)
 
     if (.not. dets%is_sorted) stop 'dets are not sorted.'
@@ -285,15 +263,17 @@ module wavefunction_module
     allocate(new_coefs(n_merged_dets))
     do i = 1, n_merged_dets
       idx = merged_dets_indices(i)
+      det_ptr => new_dets(i)
       if (idx <= n) then
-        new_dets(i) = this%dets(idx)
+        det_ptr = this%dets(idx)
         new_coefs(i) = this%coefs(idx)
       else
-        new_dets(i) = dets%dets(idx - n)
+        det_ptr = dets%dets(idx - n)
         new_coefs(i) = 0.0_DOUBLE
       endif
     enddo
-    if (associated(this%dets)) deallocate(this%dets)
+    call delete(this%dets)
+    nullify(det_ptr)
     this%dets => new_dets
     call move_alloc(new_coefs, this%coefs)
     this%n = n_merged_dets
@@ -308,6 +288,7 @@ module wavefunction_module
     integer, allocatable :: alpha_m1_order(:), beta_order(:)
     integer, allocatable :: up_elec_orbitals(:)
     type(det_type), pointer :: det_i
+    type(spin_det_type), pointer :: spin_det_ptr
 
     n = this%n
     n_up = this%n_up
@@ -318,15 +299,18 @@ module wavefunction_module
     this%is_included = .false.
     this%beta => new_spin_det_arr(n)
     allocate(this%beta_idx(n))
+    print *, 'here'
     do i = 1, n
       det_i => this%get_det(i)
-      this%beta(i) = det_i%dn
+      spin_det_ptr => this%beta(i)
+      spin_det_ptr = det_i%dn
     enddo
-    call util%arg_sort(this%beta, beta_order, n)
+    call util%sort%arg_sort(this%beta, beta_order, n)
     do i = 1, n
       order_i = beta_order(i)
       det_i => this%get_det(order_i)
-      this%beta(i) = det_i%dn
+      spin_det_ptr => this%beta(i)
+      spin_det_ptr = det_i%dn
       this%beta_idx(i) = order_i 
     enddo
 
@@ -340,21 +324,21 @@ module wavefunction_module
       det_i => this%get_det(i)
       call det_i%up%get_elec_orbitals(up_elec_orbitals, n_up)
       do j = 1, n_up
-        this%alpha_m1(n_up * (i - 1) + j) = det_i%up
-        call this%alpha_m1(n_up * (i - 1) + j)%set_orbital( &
-            & up_elec_orbitals(j), .false.)
+        spin_det_ptr => this%alpha_m1(n_up * (i - 1) + j)
+        spin_det_ptr = det_i%up
+        call spin_det_ptr%set_orbital(up_elec_orbitals(j), .false.)
       enddo
     enddo
-    call util%arg_sort(this%alpha_m1, alpha_m1_order, n * n_up)
+    call util%sort%arg_sort(this%alpha_m1, alpha_m1_order, n * n_up)
     do i = 1, n * n_up
       order_i = alpha_m1_order(i)
       order_ii = (order_i - 1) / n_up + 1
       order_ij = order_i - (order_ii - 1) * n_up
       det_i => this%get_det(order_ii)
       call det_i%up%get_elec_orbitals(up_elec_orbitals, n_up)
-      this%alpha_m1(i) = det_i%up
-      call this%alpha_m1(i)%set_orbital( &
-          & up_elec_orbitals(order_ij), .false.)
+      spin_det_ptr => this%alpha_m1(i)
+      spin_det_ptr = det_i%up
+      call spin_det_ptr%set_orbital(up_elec_orbitals(order_ij), .false.)
       this%alpha_m1_idx(i) = order_ii 
     enddo
 
@@ -375,7 +359,7 @@ module wavefunction_module
     integer, allocatable :: nonzero_connections(:)
     integer, allocatable :: up_elec_orbitals(:)
     integer, allocatable :: order(:)
-    type(spin_det_type), pointer :: tmp_spin_det
+    type(spin_det_type), target, save :: tmp_spin_det
 
     n_connections = 0
     n = this%n
@@ -385,11 +369,10 @@ module wavefunction_module
     if (.not. allocated(potential_connections)) then
       allocate(potential_connections(n))
     endif
-    ! this%is_included = .false.
 
     ! beta.
-    left = util%binary_search_lbound(det%dn, this%beta)
-    right = util%binary_search_rbound(det%dn, this%beta)
+    left = util%search%binary_search_lbound(det%dn, this%beta)
+    right = util%search%binary_search_rbound(det%dn, this%beta)
     do i = left, right
       idx = this%beta_idx(i)
       if (.not. this%is_included(idx)) then
@@ -400,13 +383,12 @@ module wavefunction_module
     enddo
 
     ! alpha_m1.
-    tmp_spin_det => tmp_spin_det_for_find_potential_connections
     tmp_spin_det = det%up
     call tmp_spin_det%get_elec_orbitals(up_elec_orbitals, n_up)
     do j = 1, n_up
       call tmp_spin_det%set_orbital(up_elec_orbitals(j), .false.)
-      left = util%binary_search_lbound(tmp_spin_det, this%alpha_m1)
-      right = util%binary_search_rbound(tmp_spin_det, this%alpha_m1)
+      left = util%search%binary_search_lbound(tmp_spin_det, this%alpha_m1)
+      right = util%search%binary_search_rbound(tmp_spin_det, this%alpha_m1)
       do i = left, right
         idx = this%alpha_m1_idx(i)
         if (.not. this%is_included(idx)) then
@@ -423,43 +405,29 @@ module wavefunction_module
       idx = potential_connections(i)
       this%is_included(idx) = .false.
       n_diff = det%get_n_diff_orbitals(this%get_det(idx))
-      ! print *, idx, n_diff
       if (n_diff <= 4) then
         n_nonzero_connections = n_nonzero_connections + 1
         nonzero_connections(n_nonzero_connections) = idx
       endif
     enddo
+
     ! Sort in order of increasing indices (for deterministic pt).
-    call util%arg_sort(nonzero_connections, order, n_nonzero_connections)
+    call util%sort%arg_sort(nonzero_connections, order, n_nonzero_connections)
     do i = 1, n_nonzero_connections
-      ! potential_connections(i) = nonzero_connections(i)
       potential_connections(i) = nonzero_connections(order(i))
-      ! this%is_included(order(i)) = .false.
-      ! potential_connections(i) = nonzero_connections(i)
-      ! this%is_included(i) = .false.
     enddo
-    ! call det%print()
-    ! print *, potential_connections(1:n_nonzero_connections)
-    ! stop
     n_connections = n_nonzero_connections
   end subroutine find_potential_connections
 
-  subroutine find_potential_connections_post_process(this, j)
-    class(wavefunction_type), intent(inout) :: this
-    integer, intent(in) :: j
-
-    this%is_included(j) = .false.
-  end subroutine find_potential_connections_post_process
-
   subroutine print(this)
     class(wavefunction_type), intent(inout) :: this
-    type(det_type), pointer :: tmp_det
+    type(det_type), pointer :: det_ptr
     integer :: i
 
     do i = 1, this%n
-      tmp_det => this%get_det(i)
-      write (6, '(A, I0, A, F0.10)'), 'det #', i, ' coef = ', this%coefs(i)
-      call tmp_det%print()
+      det_ptr => this%get_det(i)
+      write (6, '(A, I0, A, F0.10)'), 'det #', i, ', coef = ', this%coefs(i)
+      call det_ptr%print()
     enddo
   end subroutine print
 

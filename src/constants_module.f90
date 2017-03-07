@@ -6,6 +6,7 @@ module constants_module
 
   private
 
+  ! Namespace.
   public :: C
   protected :: C ! Keep invariant.
 

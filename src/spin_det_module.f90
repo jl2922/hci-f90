@@ -20,8 +20,8 @@ module spin_det_module
 
   type spin_det_type
     private
-    integer(LONG), allocatable, public :: trunks(:)
-    integer, public :: n_trunks = 0
+    integer(LONG), allocatable :: trunks(:)
+    integer :: n_trunks = 0
     integer :: n_elec_cache = -1
     integer, allocatable :: orbitals_cache(:)
     contains
@@ -29,16 +29,13 @@ module spin_det_module
       procedure, public :: get_elec_orbitals
       procedure, public :: set_orbital
       procedure, public :: get_orbital
-      procedure, public :: resize
       procedure, public :: print
       procedure, public :: from_eor ! eor without allocation for performance.
       procedure, public :: get_n_diff_orbitals
+      procedure :: resize
       procedure :: destroy_orbitals_cache
       procedure :: trail_zero
   end type spin_det_type
-
-  type(spin_det_type), target :: tmp_spin_det_for_get_elec_orbitals
-  type(spin_det_type), target :: tmp_spin_det_for_get_n_diff_orbitals
 
   interface assignment(=)
     module procedure assign_spin_det
@@ -58,7 +55,7 @@ module spin_det_module
 
   interface new_spin_det
     module procedure new_spin_det_clone
-    module procedure new_spin_det_by_n_trunks
+    module procedure new_spin_det_by_n_orbs
     module procedure new_spin_det_by_trunks
   end interface new_spin_det
 
@@ -69,16 +66,18 @@ module spin_det_module
 
   contains
 
-  function new_spin_det_by_n_trunks(n_trunks) result(res)
-    integer, intent(in) :: n_trunks
+  function new_spin_det_by_n_orbs(n_orbs) result(res)
+    integer, intent(in) :: n_orbs
     type(spin_det_type), pointer :: res
+    integer :: n_trunks
 
+    n_trunks = ceiling(n_orbs * 1.0 / C%TRUNK_SIZE)
     allocate(res)
     allocate(res%trunks(n_trunks))
     res%trunks(:) = 0
     res%n_trunks = n_trunks
     spin_det_cnt = spin_det_cnt + 1
-  end function new_spin_det_by_n_trunks
+  end function new_spin_det_by_n_orbs
  
   function new_spin_det_clone(src) result(res)
     type(spin_det_type), pointer, intent(in) :: src
@@ -118,6 +117,7 @@ module spin_det_module
   subroutine delete_spin_det(spin_det)
     type(spin_det_type), pointer, intent(inout) :: spin_det
 
+    if (.not. associated(spin_det)) return
     spin_det_cnt = spin_det_cnt - 1
     deallocate(spin_det)
     nullify(spin_det)
@@ -127,6 +127,7 @@ module spin_det_module
     type(spin_det_type), pointer, intent(inout) :: spin_det_arr(:)
     integer :: i
 
+    if (.not. associated(spin_det_arr)) return
     spin_det_cnt = spin_det_cnt - size(spin_det_arr)
     deallocate(spin_det_arr)
     nullify(spin_det_arr)
@@ -188,7 +189,7 @@ module spin_det_module
       endif
     else
       this%trunks(trunk) = ibclr(this%trunks(trunk), i - 1)
-      if (orginally_occupied .and. this%n_elec_cache >= 0) then
+      if (orginally_occupied .and. this%n_elec_cache >= 1) then
         this%n_elec_cache = this%n_elec_cache - 1
       endif
     endif
@@ -224,7 +225,7 @@ module spin_det_module
     integer :: n_elec
     integer :: i
     integer :: pos
-    type(spin_det_type), pointer :: tmp_spin_det
+    type(spin_det_type), target, save :: tmp_spin_det
 
     if (allocated(this%orbitals_cache)) then
       allocate(orbitals(size(this%orbitals_cache)))
@@ -239,11 +240,8 @@ module spin_det_module
     endif
     this%n_elec_cache = n_elec
     allocate(orbitals(n_elec))
-    tmp_spin_det => tmp_spin_det_for_get_elec_orbitals
     call tmp_spin_det%resize(this%n_trunks)
-    do i = 1, this%n_trunks
-      tmp_spin_det%trunks(i) = this%trunks(i)
-    enddo
+    tmp_spin_det%trunks(:) = this%trunks(:)
     do i = 1, n_elec
       pos = tmp_spin_det%trail_zero() + 1
       orbitals(i) = pos
@@ -327,6 +325,7 @@ module spin_det_module
     type(spin_det_type), pointer, intent(in) :: src
     type(spin_det_type), pointer, intent(out) :: dest
    
+    if (.not. associated(dest)) allocate(dest)
     call dest%resize(src%n_trunks)
     dest%trunks(:) = src%trunks(:)
     dest%n_elec_cache = src%n_elec_cache
@@ -338,6 +337,10 @@ module spin_det_module
     logical :: is_equal
     integer :: i
 
+    if (left%n_trunks /= right%n_trunks) then
+      is_equal = .false.
+      return
+    endif
     do i = 1, left%n_trunks
       if (left%trunks(i) == right%trunks(i)) then
         cycle
@@ -354,6 +357,10 @@ module spin_det_module
     logical :: is_lt
     integer :: i
 
+    if (left%n_trunks /= right%n_trunks) then
+      call backtrace
+      stop 'spin det comparison size mismatch.'
+    endif
     do i = left%n_trunks, 1, -1
       if (left%trunks(i) == right%trunks(i)) then
         cycle
@@ -370,6 +377,10 @@ module spin_det_module
     logical :: is_gt
     integer :: i
 
+    if (left%n_trunks /= right%n_trunks) then
+      call backtrace
+      stop 'spin det comparison size mismatch.'
+    endif
     do i = left%n_trunks, 1, -1
       if (left%trunks(i) == right%trunks(i)) then
         cycle
