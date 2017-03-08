@@ -32,6 +32,8 @@ module spin_det_module
       procedure, public :: print
       procedure, public :: from_eor ! eor without allocation for performance.
       procedure, public :: get_n_diff_orbitals
+      procedure, public :: is_allocated
+      procedure, public :: get_hash
       procedure :: resize
       procedure :: destroy_orbitals_cache
       procedure :: trail_zero
@@ -391,5 +393,27 @@ module spin_det_module
     enddo
     is_gt = .false.
   end function gt_spin_det
+
+  function is_allocated(this) result(res)
+    class(spin_det_type), intent(inout) :: this
+    logical :: res
+
+    res = allocated(this%trunks)
+  end function is_allocated
+
+  function get_hash(this, table_size) result(hash_value)
+    class(spin_det_type), intent(inout) :: this
+    integer, intent(in) :: table_size
+    integer :: hash_value
+    integer, parameter :: SEED = 0
+    integer :: i
+
+    hash_value = 0
+    do i = 1, this%n_trunks
+      hash_value = hash_value + this%trunks(i)
+    enddo
+    hash_value = mod(hash_value, table_size)
+    if (hash_value <= 0) hash_value = hash_value + table_size
+  end function get_hash
 
 end module spin_det_module

@@ -1,11 +1,13 @@
 module types_module
 
+  use, intrinsic :: iso_fortran_env
+
   implicit none
 
   private
 
-  public :: INT8, INT16, INT32, INT64
-  public :: SINGLE, DOUBLE
+  ! public :: INT8, INT16, INT32, INT64
+  public :: DOUBLE
   public :: LONG
 
   public :: INT_PAIR
@@ -14,15 +16,8 @@ module types_module
   public :: optional_int
   public :: optional_double
 
-  integer, parameter :: INT8 = selected_int_kind(2)
-  integer, parameter :: INT16 = selected_int_kind(4)
-  integer, parameter :: INT32 = selected_int_kind(9)
-  integer, parameter :: INT64 = selected_int_kind(18)
-
-  integer, parameter :: SINGLE = selected_real_kind(6, 37)
-  integer, parameter :: DOUBLE = selected_real_kind(13, 300)
-
   integer, parameter :: LONG = INT64
+  integer, parameter :: DOUBLE = REAL64
 
   type INT_PAIR
     integer :: i1 = 0
