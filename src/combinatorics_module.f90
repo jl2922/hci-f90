@@ -6,7 +6,6 @@ module combinatorics_module
 
   ! Namespaces.
   public :: combinatorics_type
-  public :: combinatorics
 
   type combinatorics_type
     contains
@@ -14,8 +13,6 @@ module combinatorics_module
       procedure, public :: P
       procedure, public :: factorial
   end type combinatorics_type
-
-  type(combinatorics_type) :: combinatorics
 
   contains
 

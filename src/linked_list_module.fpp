@@ -45,6 +45,7 @@ module linked_list_module__${shortname[dtype]}$
 
   interface delete
     module procedure delete_linked_list__${shortname[dtype]}$
+    module procedure delete_linked_list_arr__${shortname[dtype]}$
   end interface delete
   
   interface assignment(=)

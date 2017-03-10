@@ -688,12 +688,17 @@ module solver_module
     type(det_type), pointer :: det_i, det_j, det_a
     type(wavefunction_type), pointer :: connected_dets
     integer, allocatable :: potential_connections(:)
+    integer :: cnt
+    integer :: cnt_tot
 
     pt_energy = 0.0_DOUBLE
     var_energy = this%var_energy
     eps_pt = this%eps_pt
     call this%wf%find_potential_connections_setup()
+    cnt = 0
+    cnt_tot = 0
     do i = 1, this%wf%n
+      print *, 'cnt_void, cnt_tot = ', cnt, cnt_tot
       det_i => this%wf%get_det(i)
       call this%find_connected_dets( &
           & det_i, eps_pt / abs(this%wf%get_coef(i)), connected_dets)
@@ -702,12 +707,14 @@ module solver_module
         is_added = .false.
         det_a => connected_dets%get_det(a)
         if (det_a == det_i) cycle
+        cnt_tot = cnt_tot + 1
         call this%wf%find_potential_connections( &
             & det_a, potential_connections, n_connections)
         do j_idx = 1, n_connections
           j = potential_connections(j_idx)
           det_j => this%wf%get_det(j)
           if (det_a == det_j) then
+            cnt = cnt + 1
             is_added = .true.
             exit
           endif

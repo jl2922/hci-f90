@@ -31,7 +31,6 @@ module solver_controller_module
     system_name = this%get_system_name(config_file_unit)
     write (6, '(A, A)') 'System: ', system_name
     write (6, '()')
-
     select case (system_name)
     case ('heg')
       call heg_solver_instance%solve(config_file_unit)
@@ -42,13 +41,13 @@ module solver_controller_module
 
   function create_config_file(this) result(config_file_unit)
     class(solver_controller_type), intent(inout) :: this
-    integer, parameter :: MAX_LINE_LENGTH = 1024
     integer :: config_file_unit
+    integer, parameter :: MAX_LINE_LENGTH = 1024
     integer :: io_err
     character(MAX_LINE_LENGTH) :: line
 
     config_file_unit = util%get_free_unit()
-    open(& 
+    open( & 
         & unit=config_file_unit, &
         & status='scratch', &
         & recl=MAX_LINE_LENGTH, &

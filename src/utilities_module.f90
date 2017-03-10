@@ -2,9 +2,7 @@ module utilities_module
 
   use combinatorics_module
   use search_module
-  use spin_det_module
   use sort_module
-  use types_module
 
   implicit none
 
@@ -27,11 +25,13 @@ module utilities_module
 
   type(integer) function get_free_unit(this) result(free_unit)
     class(utilities_type), intent(in) :: this
-    logical :: is_open
+    logical :: is_opened
+    integer, parameter :: FREE_UNIT_MIN = 100
+    integer, parameter :: FREE_UNIT_MAX = 999
 
-    do free_unit = 100, 999
-      inquire(unit=free_unit, opened=is_open)
-      if (.not. is_open) then
+    do free_unit = FREE_UNIT_MIN, FREE_UNIT_MAX
+      inquire(unit=free_unit, opened=is_opened)
+      if (.not. is_opened) then
         exit
       end if
     end do

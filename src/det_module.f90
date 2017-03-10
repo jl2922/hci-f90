@@ -97,7 +97,6 @@ module det_module
 
   subroutine print(this)
     class(det_type), intent(in) :: this
-    integer :: i
 
     call this%up%print()
     call this%dn%print()

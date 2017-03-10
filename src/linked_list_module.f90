@@ -40,6 +40,7 @@ module linked_list_module__int
 
   interface delete
     module procedure delete_linked_list__int
+    module procedure delete_linked_list_arr__int
   end interface delete
   
   interface assignment(=)
@@ -230,6 +231,7 @@ module linked_list_module__double
 
   interface delete
     module procedure delete_linked_list__double
+    module procedure delete_linked_list_arr__double
   end interface delete
   
   interface assignment(=)

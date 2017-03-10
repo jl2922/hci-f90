@@ -22,6 +22,10 @@ module hash_table_module
 
   type(linked_list_type__int), target :: EMPTY_LIST
 
+  interface delete
+    module procedure delete_hash_table
+  end interface delete
+
   contains
 
   function new_hash_table(table_size) result(table)
@@ -46,7 +50,7 @@ module hash_table_module
     cnt = 0
     do while (cnt < this%table_size)
       tmp_spin_det => this%keys(hash_value)
-      if (.not. tmp_spin_det%is_allocated()) then
+      if (tmp_spin_det%is_empty()) then
         exit
       endif
       if (tmp_spin_det == spin_det) then
@@ -60,9 +64,9 @@ module hash_table_module
       endif
     enddo
     int_list => EMPTY_LIST
-    if (int_list%get_length() > 0) then
+    if (.not. associated(this%keys)) then
       call backtrace
-      stop 'shall not reach here.'
+      stop 'illegal state.'
     endif
   end function get
 
@@ -79,7 +83,7 @@ module hash_table_module
     cnt = 0
     do while (cnt < this%table_size)
       tmp_spin_det => this%keys(hash_value)
-      if (.not. tmp_spin_det%is_allocated()) then
+      if (tmp_spin_det%is_empty()) then
         tmp_spin_det = spin_det
         tmp_int_list => this%values(hash_value)
         tmp_int_list = int_list
@@ -98,5 +102,15 @@ module hash_table_module
     enddo
     stop 'hash table is full.'
   end subroutine set
+
+  subroutine delete_hash_table(table)
+    type(hash_table_type), pointer, intent(inout) :: table
+
+    if (.not. associated(table)) return
+    call delete(table%keys)
+    call delete(table%values)
+    deallocate(table)
+    nullify(table)
+  end subroutine delete_hash_table
 
 end module

@@ -8,15 +8,12 @@ module search_module
 
   ! Namespaces.
   public :: search_type
-  public :: search
 
   type search_type
     contains
       procedure, public :: binary_search_lbound
       procedure, public :: binary_search_rbound
   end type search_type
-
-  type(search_type) :: search
 
   contains
 

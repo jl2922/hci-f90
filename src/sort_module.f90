@@ -10,7 +10,6 @@ module sort_module
 
   ! Namespaces.
   public :: sort_type
-  public :: sort
 
 
   type sort_type
@@ -25,8 +24,6 @@ module sort_module
       procedure :: arg_sort__spin_det 
       procedure :: arg_sort__det 
   end type sort_type
-
-  type(sort_type) :: sort
 
   contains
 

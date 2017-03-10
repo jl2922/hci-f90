@@ -32,7 +32,7 @@ module spin_det_module
       procedure, public :: print
       procedure, public :: from_eor ! eor without allocation for performance.
       procedure, public :: get_n_diff_orbitals
-      procedure, public :: is_allocated
+      procedure, public :: is_empty
       procedure, public :: get_hash
       procedure :: resize
       procedure :: destroy_orbitals_cache
@@ -127,7 +127,6 @@ module spin_det_module
 
   subroutine delete_spin_det_arr(spin_det_arr)
     type(spin_det_type), pointer, intent(inout) :: spin_det_arr(:)
-    integer :: i
 
     if (.not. associated(spin_det_arr)) return
     spin_det_cnt = spin_det_cnt - size(spin_det_arr)
@@ -168,7 +167,6 @@ module spin_det_module
     class(spin_det_type), intent(inout) :: this
     integer, intent(in) :: orbital_idx
     logical, optional, intent(in) :: is_occupied ! Default to 1.
-    logical :: orginally_occupied
     integer :: i
     integer :: trunk
 
@@ -183,18 +181,12 @@ module spin_det_module
       i = i - C%TRUNK_SIZE
       trunk = trunk + 1
     enddo
-    orginally_occupied = btest(this%trunks(trunk), i - 1)
     if ((.not. present(is_occupied)) .or. is_occupied) then
       this%trunks(trunk) = ibset(this%trunks(trunk), i - 1)
-      if (.not. orginally_occupied .and. this%n_elec_cache >= 0) then
-        this%n_elec_cache = this%n_elec_cache + 1
-      endif
     else
       this%trunks(trunk) = ibclr(this%trunks(trunk), i - 1)
-      if (orginally_occupied .and. this%n_elec_cache >= 1) then
-        this%n_elec_cache = this%n_elec_cache - 1
-      endif
     endif
+    this%n_elec_cache = -1
     call this%destroy_orbitals_cache()
   end subroutine set_orbital
 
@@ -231,7 +223,7 @@ module spin_det_module
 
     if (allocated(this%orbitals_cache)) then
       allocate(orbitals(size(this%orbitals_cache)))
-      orbitals(:) = this%orbitals_cache
+      orbitals(:) = this%orbitals_cache(:)
       return
     endif
 
@@ -303,6 +295,7 @@ module spin_det_module
       call backtrace
       stop 'from eor input size mismatch.'
     endif
+
     call this%resize(op1%n_trunks)
     do i = 1, this%n_trunks
       this%trunks(i) = ieor(op1%trunks(i), op2%trunks(i))
@@ -316,6 +309,11 @@ module spin_det_module
     integer :: i
     integer(LONG) :: eor_trunk
     
+    if (this%n_trunks /= op%n_trunks) then
+      call backtrace
+      stop 'get_n_diff_orbitals size mismatch.'
+    endif
+
     n_diff = 0
     do i = 1, this%n_trunks
       eor_trunk = ieor(this%trunks(i), op%trunks(i))
@@ -394,26 +392,28 @@ module spin_det_module
     is_gt = .false.
   end function gt_spin_det
 
-  function is_allocated(this) result(res)
+  function is_empty(this) result(res)
     class(spin_det_type), intent(inout) :: this
     logical :: res
 
-    res = allocated(this%trunks)
-  end function is_allocated
+    res = (this%n_trunks == 0)
+  end function is_empty
 
   function get_hash(this, table_size) result(hash_value)
     class(spin_det_type), intent(inout) :: this
     integer, intent(in) :: table_size
     integer :: hash_value
-    integer, parameter :: SEED = 0
     integer :: i
+    integer(LONG) :: sum_trunks
 
-    hash_value = 0
+    sum_trunks = 0
     do i = 1, this%n_trunks
-      hash_value = hash_value + this%trunks(i)
+      sum_trunks = sum_trunks + this%trunks(i)
     enddo
-    hash_value = mod(hash_value, table_size)
-    if (hash_value <= 0) hash_value = hash_value + table_size
+    hash_value = mod(int(sum_trunks), table_size)
+    if (hash_value <= 0) then
+      hash_value = hash_value + table_size
+    endif
   end function get_hash
 
 end module spin_det_module

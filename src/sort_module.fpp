@@ -10,7 +10,6 @@ module sort_module
 
   ! Namespaces.
   public :: sort_type
-  public :: sort
 
   #:set type_defs { &
       & 'int': 'integer', &
@@ -30,8 +29,6 @@ module sort_module
       procedure :: arg_sort__${arg_sort_type}$ 
       #:endfor
   end type sort_type
-
-  type(sort_type) :: sort
 
   contains
 
