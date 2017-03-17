@@ -1,26 +1,27 @@
-module hash_table_module
+module hash_table_module__spin_det__int_list
   
   use spin_det_module
   use linked_list_module__int
+
   implicit none
 
   private
 
-  public :: hash_table_type
-  public :: new_hash_table
+  public :: hash_table_type__spin_det__int_list
+  public :: new_hash_table__spin_det__int_list
   public :: delete
 
-  type hash_table_type
+  type hash_table_type__spin_det__int_list
     integer :: table_size
     integer :: n = 0
     type(spin_det_type), pointer :: keys(:) => null()
     type(linked_list_type__int), pointer :: values(:) => null()
     contains
+      procedure :: has
       procedure :: get
       procedure :: set
-  end type hash_table_type
-
-  type(linked_list_type__int), target :: EMPTY_LIST
+      procedure :: remove
+  end type hash_table_type__spin_det__int_list
 
   interface delete
     module procedure delete_hash_table
@@ -28,33 +29,43 @@ module hash_table_module
 
   contains
 
-  function new_hash_table(table_size) result(table)
+  function new_hash_table__spin_det__int_list(table_size) result(table)
     integer, intent(in) :: table_size
-    type(hash_table_type), pointer :: table
+    type(hash_table_type__spin_det__int_list), pointer :: table
 
     allocate(table)
     table%keys => new_spin_det_arr(table_size)
     table%values => new_linked_list_arr__int(table_size, 8)
     table%table_size = table_size
-  end function new_hash_table
+  end function new_hash_table__spin_det__int_list
 
-  function get(this, spin_det) result(int_list)
-    class(hash_table_type), intent(inout) :: this
-    type(spin_det_type), pointer, intent(inout) :: spin_det
-    type(linked_list_type__int), pointer :: int_list
-    type(spin_det_type), pointer :: tmp_spin_det
+  function has(this, key)
+    class(hash_table_type__spin_det__int_list), intent(inout) :: this
+    type(spin_det_type), pointer, intent(inout) :: key
+    logical :: has
+    type(linked_list_type__int), pointer :: val
+
+    val => this%get(key)
+    has = associated(val)
+  end function has
+
+  function get(this, key) result(val)
+    class(hash_table_type__spin_det__int_list), intent(inout) :: this
+    type(spin_det_type), pointer, intent(inout) :: key
+    type(linked_list_type__int), pointer :: val
+    type(spin_det_type), pointer :: tmp_key
     integer :: cnt
     integer :: hash_value
 
-    hash_value = spin_det%get_hash(this%table_size) 
+    hash_value = key%get_hash(this%table_size) 
     cnt = 0
     do while (cnt < this%table_size)
-      tmp_spin_det => this%keys(hash_value)
-      if (tmp_spin_det%is_empty()) then
+      tmp_key => this%keys(hash_value)
+      if (tmp_key%is_empty()) then
         exit
       endif
-      if (tmp_spin_det == spin_det) then
-        int_list => this%values(hash_value)
+      if (tmp_key == key) then
+        val => this%values(hash_value)
         return
       endif
       hash_value = hash_value + 1
@@ -63,35 +74,35 @@ module hash_table_module
         hash_value = 1
       endif
     enddo
-    int_list => EMPTY_LIST
+    val => null()
     if (.not. associated(this%keys)) then
       call backtrace
       stop 'illegal state.'
     endif
   end function get
 
-  subroutine set(this, spin_det, int_list)
-    class(hash_table_type), intent(inout) :: this
-    type(spin_det_type), pointer, intent(inout) :: spin_det
-    type(linked_list_type__int), pointer, intent(in) :: int_list
-    type(spin_det_type), pointer :: tmp_spin_det
-    type(linked_list_type__int), pointer :: tmp_int_list
+  subroutine set(this, key, val)
+    class(hash_table_type__spin_det__int_list), intent(inout) :: this
+    type(spin_det_type), pointer, intent(inout) :: key
+    type(linked_list_type__int), pointer, intent(in) :: val
+    type(spin_det_type), pointer :: tmp_key
+    type(linked_list_type__int), pointer :: tmp_val
     integer :: cnt
     integer :: hash_value
 
-    hash_value = spin_det%get_hash(this%table_size)
+    hash_value = key%get_hash(this%table_size)
     cnt = 0
     do while (cnt < this%table_size)
-      tmp_spin_det => this%keys(hash_value)
-      if (tmp_spin_det%is_empty()) then
-        tmp_spin_det = spin_det
-        tmp_int_list => this%values(hash_value)
-        tmp_int_list = int_list
+      tmp_key => this%keys(hash_value)
+      if (tmp_key%is_empty()) then
+        tmp_key = key
+        tmp_val => this%values(hash_value)
+        tmp_val = val
         return 
       endif
-      if (tmp_spin_det == spin_det) then
-        tmp_int_list => this%values(hash_value)
-        tmp_int_list = int_list
+      if (tmp_key == key) then
+        tmp_val => this%values(hash_value)
+        tmp_val = val
         return
       endif
       hash_value = hash_value + 1
@@ -103,8 +114,223 @@ module hash_table_module
     stop 'hash table is full.'
   end subroutine set
 
+  subroutine remove(this, key)
+    class(hash_table_type__spin_det__int_list), intent(inout) :: this
+    type(spin_det_type), pointer, intent(in) :: key
+    type(spin_det_type), pointer :: tmp_key_prev, tmp_key
+    type(linked_list_type__int), pointer :: tmp_val_prev, tmp_val
+    integer :: hash_value
+    integer :: cnt
+
+    hash_value = key%get_hash(this%table_size)
+    cnt = 0
+    do while (cnt < this%table_size)
+      tmp_key => this%keys(hash_value)
+      if (tmp_key%is_empty()) then
+        exit
+      endif
+      if (tmp_key == key) then
+        do
+          tmp_val_prev => this%values(hash_value)
+          tmp_key_prev => this%keys(hash_value)
+          hash_value = hash_value + 1
+          if (hash_value > this%table_size) then
+            hash_value = 1
+          endif
+          tmp_key => this%keys(hash_value)
+          if (tmp_key%is_empty()) then
+            return
+          endif
+          if (tmp_key%get_hash(this%table_size) /= hash_value) then
+            tmp_val => this%values(hash_value)
+            tmp_val_prev = tmp_val
+            tmp_key_prev = tmp_key
+          endif
+        enddo
+      endif
+      hash_value = hash_value + 1
+      cnt = cnt + 1
+      if (hash_value > this%table_size) then
+        hash_value = 1
+      endif
+    enddo
+    call backtrace
+    stop 'Key not found'
+  end subroutine remove
+
   subroutine delete_hash_table(table)
-    type(hash_table_type), pointer, intent(inout) :: table
+    type(hash_table_type__spin_det__int_list), pointer, intent(inout) :: table
+
+    if (.not. associated(table)) return
+    call delete(table%keys)
+    call delete(table%values)
+    deallocate(table)
+    nullify(table)
+  end subroutine delete_hash_table
+
+end module
+module hash_table_module__det__det_list_node
+  
+  use det_module
+  use doubly_linked_list_module
+
+  implicit none
+
+  private
+
+  public :: hash_table_type__det__det_list_node
+  public :: new_hash_table__det__det_list_node
+  public :: delete
+
+  type hash_table_type__det__det_list_node
+    integer :: table_size
+    integer :: n = 0
+    type(det_type), pointer :: keys(:) => null()
+    type(doubly_linked_list_node_type), pointer :: values(:) => null()
+    contains
+      procedure :: has
+      procedure :: get
+      procedure :: set
+      procedure :: remove
+  end type hash_table_type__det__det_list_node
+
+  interface delete
+    module procedure delete_hash_table
+  end interface delete
+
+  contains
+
+  function new_hash_table__det__det_list_node(table_size) result(table)
+    integer, intent(in) :: table_size
+    type(hash_table_type__det__det_list_node), pointer :: table
+
+    allocate(table)
+    table%keys => new_det_arr(table_size)
+    table%values => new_doubly_linked_list_node_arr(table_size)
+    table%table_size = table_size
+  end function new_hash_table__det__det_list_node
+
+  function has(this, key)
+    class(hash_table_type__det__det_list_node), intent(inout) :: this
+    type(det_type), pointer, intent(inout) :: key
+    logical :: has
+    type(doubly_linked_list_node_type), pointer :: val
+
+    val => this%get(key)
+    has = associated(val)
+  end function has
+
+  function get(this, key) result(val)
+    class(hash_table_type__det__det_list_node), intent(inout) :: this
+    type(det_type), pointer, intent(inout) :: key
+    type(doubly_linked_list_node_type), pointer :: val
+    type(det_type), pointer :: tmp_key
+    integer :: cnt
+    integer :: hash_value
+
+    hash_value = key%get_hash(this%table_size) 
+    cnt = 0
+    do while (cnt < this%table_size)
+      tmp_key => this%keys(hash_value)
+      if (tmp_key%is_empty()) then
+        exit
+      endif
+      if (tmp_key == key) then
+        val => this%values(hash_value)
+        return
+      endif
+      hash_value = hash_value + 1
+      cnt = cnt + 1
+      if (hash_value > this%table_size) then
+        hash_value = 1
+      endif
+    enddo
+    val => null()
+    if (.not. associated(this%keys)) then
+      call backtrace
+      stop 'illegal state.'
+    endif
+  end function get
+
+  subroutine set(this, key, val)
+    class(hash_table_type__det__det_list_node), intent(inout) :: this
+    type(det_type), pointer, intent(inout) :: key
+    type(doubly_linked_list_node_type), pointer, intent(in) :: val
+    type(det_type), pointer :: tmp_key
+    type(doubly_linked_list_node_type), pointer :: tmp_val
+    integer :: cnt
+    integer :: hash_value
+
+    hash_value = key%get_hash(this%table_size)
+    cnt = 0
+    do while (cnt < this%table_size)
+      tmp_key => this%keys(hash_value)
+      if (tmp_key%is_empty()) then
+        tmp_key = key
+        tmp_val => this%values(hash_value)
+        tmp_val = val
+        return 
+      endif
+      if (tmp_key == key) then
+        tmp_val => this%values(hash_value)
+        tmp_val = val
+        return
+      endif
+      hash_value = hash_value + 1
+      cnt = cnt + 1
+      if (hash_value > this%table_size) then
+        hash_value = 1
+      endif
+    enddo
+    stop 'hash table is full.'
+  end subroutine set
+
+  subroutine remove(this, key)
+    class(hash_table_type__det__det_list_node), intent(inout) :: this
+    type(det_type), pointer, intent(in) :: key
+    type(det_type), pointer :: tmp_key_prev, tmp_key
+    type(doubly_linked_list_node_type), pointer :: tmp_val_prev, tmp_val
+    integer :: hash_value
+    integer :: cnt
+
+    hash_value = key%get_hash(this%table_size)
+    cnt = 0
+    do while (cnt < this%table_size)
+      tmp_key => this%keys(hash_value)
+      if (tmp_key%is_empty()) then
+        exit
+      endif
+      if (tmp_key == key) then
+        do
+          tmp_val_prev => this%values(hash_value)
+          tmp_key_prev => this%keys(hash_value)
+          hash_value = hash_value + 1
+          if (hash_value > this%table_size) then
+            hash_value = 1
+          endif
+          tmp_key => this%keys(hash_value)
+          if (tmp_key%is_empty()) then
+            return
+          endif
+          if (tmp_key%get_hash(this%table_size) /= hash_value) then
+            tmp_val => this%values(hash_value)
+            tmp_val_prev = tmp_val
+            tmp_key_prev = tmp_key
+          endif
+        enddo
+      endif
+      hash_value = hash_value + 1
+      cnt = cnt + 1
+      if (hash_value > this%table_size) then
+        hash_value = 1
+      endif
+    enddo
+    call backtrace
+    stop 'Key not found'
+  end subroutine remove
+
+  subroutine delete_hash_table(table)
+    type(hash_table_type__det__det_list_node), pointer, intent(inout) :: table
 
     if (.not. associated(table)) return
     call delete(table%keys)

@@ -10,6 +10,7 @@ module det_module
 
   public :: det_type
   public :: new_det
+  public :: new_det_arr
   public :: delete
   public :: assignment(=)
   public :: operator(==)
@@ -23,6 +24,8 @@ module det_module
     contains
       procedure, public :: print
       procedure, public :: from_eor
+      procedure, public :: is_empty
+      procedure, public :: get_hash
       procedure, public :: get_n_diff_orbitals
   end type det_type
 
@@ -72,6 +75,13 @@ module det_module
     det%dn => new_spin_det(n_orbs)
   end function new_det_by_n_orbs
 
+  function new_det_arr(n) result(arr)
+    integer, intent(in) :: n
+    type(det_type), pointer :: arr(:)
+
+    allocate(arr(n))
+  end function new_det_arr
+
   subroutine delete_det(det)
     type(det_type), pointer :: det
 
@@ -109,6 +119,13 @@ module det_module
     call this%up%from_eor(det1%up, det2%up)
     call this%dn%from_eor(det1%dn, det2%dn)
   end subroutine from_eor
+
+  function is_empty(this)
+    class(det_type), intent(inout) :: this
+    logical :: is_empty
+
+    is_empty = (.not. associated(this%up)) .and. (.not. associated(this%dn))
+  end function is_empty
 
   function get_n_diff_orbitals(this, op) result(n_diff)
     class(det_type), intent(inout) :: this
@@ -149,5 +166,16 @@ module det_module
     is_gt = (left%up > right%up) .or. &
         & ((left%up == right%up) .and. (left%dn > right%dn))
   end function gt_det
+
+  function get_hash(this, table_size) result(hash)
+    class(det_type), intent(inout) :: this
+    integer, intent(in) :: table_size
+    integer :: hash
+
+    hash = this%up%get_hash(table_size) + this%dn%get_hash(table_size)
+    if (hash > table_size) then
+      hash = hash - table_size
+    endif
+  end function get_hash
 
 end module det_module

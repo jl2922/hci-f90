@@ -4,5 +4,5 @@ lflags = -O3 -g
 ext_libs = lapack blas
 fc = gfortran
 modsw = -J
-exclude = sort_module.fpp linked_list_module.fpp
+exclude = sort_module.fpp linked_list_module.fpp hash_table_module.fpp
 log = False

@@ -20,7 +20,6 @@ module combinatorics_module
     class(combinatorics_type), intent(in) :: this
     integer, intent(in) :: n, k
     integer :: res
-    integer :: i
 
     res = this%P(n, k) / this%factorial(k)
   end function C

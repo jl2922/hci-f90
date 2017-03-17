@@ -134,7 +134,7 @@ module solver_module
   subroutine solve(this, config_file_unit)
     class(solver_type), intent(inout) :: this
     integer, intent(in) :: config_file_unit
-    integer :: i, j
+    integer :: i 
     real(DOUBLE) :: energy_prev, energy_cur
     type(wavefunction_type), pointer :: wf_prev
 
@@ -195,14 +195,14 @@ module solver_module
     type(det_type), pointer, intent(inout) :: det_pq, det_rs
     real(DOUBLE) :: H
 
+    H = 0.0_DOUBLE
     stop 'get_hamiltonian_elem function has not been overloaded.'
   end function
 
   subroutine get_next_dets(this)
     class(solver_type), intent(inout) :: this
-    integer :: i, j
+    integer :: i
     integer :: n_dets_old
-    integer, allocatable :: indices_old(:)
     type(det_type), pointer :: tmp_det
     type(wavefunction_type), pointer :: connected_dets
     type(wavefunction_type), pointer :: new_dets
@@ -472,7 +472,7 @@ module solver_module
     integer                  :: len_work,info
     real(DOUBLE),allocatable     :: work(:),eigenvalues(:),h_krylov(:,:),h_overwrite(:,:)
     real(DOUBLE),allocatable     :: diag_elems(:)
-    integer :: ind,j
+    integer :: j
     integer :: niter
     integer :: n_diagonalize
 
@@ -675,7 +675,7 @@ module solver_module
   subroutine pt_det(this)
     class(solver_type), intent(inout) :: this
     logical :: is_added
-    integer :: i, j, k, a
+    integer :: i, j, a
     integer :: j_idx
     integer :: n_connections
     real(DOUBLE) :: E_a
@@ -698,16 +698,20 @@ module solver_module
     cnt = 0
     cnt_tot = 0
     do i = 1, this%wf%n
-      print *, 'cnt_void, cnt_tot = ', cnt, cnt_tot
       det_i => this%wf%get_det(i)
       call this%find_connected_dets( &
           & det_i, eps_pt / abs(this%wf%get_coef(i)), connected_dets)
       do a = 1, connected_dets%n
-        sum_a = 0.0_DOUBLE
-        is_added = .false.
         det_a => connected_dets%get_det(a)
         if (det_a == det_i) cycle
+        if (this%wf%ab_find%lru%has(det_a)) then
+          ! print *, 'here'
+          cycle
+        endif
+        sum_a = 0.0_DOUBLE
+        is_added = .false.
         cnt_tot = cnt_tot + 1
+        print *, 'cnt_tot:', cnt_tot
         call this%wf%find_potential_connections( &
             & det_a, potential_connections, n_connections)
         do j_idx = 1, n_connections
@@ -739,6 +743,7 @@ module solver_module
         endif
         E_a = this%get_hamiltonian_elem(det_a, det_a)
         pt_energy = pt_energy + sum_a**2 / (var_energy - E_a)
+        call this%wf%ab_find%lru%cache(det_a)
       enddo
       call delete(connected_dets)
     enddo

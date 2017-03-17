@@ -2,9 +2,10 @@ module wavefunction_module
 
   use constants_module
   use spin_det_module
-  use hash_table_module
+  use hash_table_module__spin_det__int_list
   use det_module
   use linked_list_module__int
+  use lru_cache_module
   use types_module
   use utilities_module
 
@@ -20,12 +21,13 @@ module wavefunction_module
   type ab_find_type
     type(spin_det_type), pointer :: alpha(:) => null()
     type(spin_det_type), pointer :: beta(:) => null()
-    type(hash_table_type), pointer :: alpha_m1_lut => null()
-    type(hash_table_type), pointer :: beta_m1_lut => null()
+    type(hash_table_type__spin_det__int_list), pointer :: alpha_m1_lut => null()
+    type(hash_table_type__spin_det__int_list), pointer :: beta_m1_lut => null()
     integer, allocatable :: alpha_idx(:)
     integer, allocatable :: beta_idx(:)
     logical, allocatable :: is_alpha_m1_connected(:)
     logical, allocatable :: is_included(:)
+    type(lru_cache_type), pointer :: lru => null()
     contains
       procedure, public :: clear => clear_ab_find
   end type ab_find_type
@@ -225,7 +227,6 @@ module wavefunction_module
     class(wavefunction_type), intent(inout) :: this
     type(wavefunction_type), pointer, intent(inout) :: dets
     integer :: n
-    integer :: dets_idx
     integer :: n_merged_dets
     integer :: i
     integer :: idx
@@ -295,10 +296,10 @@ module wavefunction_module
     integer :: n
     integer :: n_up
     integer :: n_dn
-    integer :: order_i, order_ii, order_ij
+    integer :: order_i
     integer :: i, j
-    integer, allocatable :: alpha_order(:), alpha_m1_order(:)
-    integer, allocatable :: beta_order(:), beta_m1_order(:)
+    integer, allocatable :: alpha_order(:)
+    integer, allocatable :: beta_order(:)
     integer, allocatable :: up_elec_orbitals(:)
     integer, allocatable :: dn_elec_orbitals(:)
     type(det_type), pointer :: det_i
@@ -313,6 +314,7 @@ module wavefunction_module
     this%ab_find%is_included = .false.
     allocate(this%ab_find%is_alpha_m1_connected(n))
     this%ab_find%is_alpha_m1_connected = .false.
+    this%ab_find%lru => new_lru_cache(int(1e7))
 
     ! Setup alpha and beta.
     this%ab_find%alpha => new_spin_det_arr(n)
@@ -347,7 +349,7 @@ module wavefunction_module
     n_up = tmp_det%up%get_n_elec()
     this%n_up = n_up
     allocate(up_elec_orbitals(n_up))
-    this%ab_find%alpha_m1_lut => new_hash_table(n * n_up)
+    this%ab_find%alpha_m1_lut => new_hash_table__spin_det__int_list(n * n_up)
     do i = 1, n
       det_i => this%get_det(i)
       tmp_spin_det => det_i%up
@@ -355,7 +357,7 @@ module wavefunction_module
       do j = 1, n_up
         call tmp_spin_det%set_orbital(up_elec_orbitals(j), .false.)
         idx_list => this%ab_find%alpha_m1_lut%get(tmp_spin_det)
-        if (idx_list%is_empty()) then
+        if (.not. associated(idx_list)) then
           call this%ab_find%alpha_m1_lut%set(tmp_spin_det, EMPTY_INT_LIST)
           idx_list => this%ab_find%alpha_m1_lut%get(tmp_spin_det)
         endif
@@ -369,7 +371,7 @@ module wavefunction_module
     n_dn = tmp_det%dn%get_n_elec()
     this%n_dn = n_dn
     allocate(dn_elec_orbitals(n_dn))
-    this%ab_find%beta_m1_lut => new_hash_table(n * n_up)
+    this%ab_find%beta_m1_lut => new_hash_table__spin_det__int_list(n * n_up)
     do i = 1, n
       det_i => this%get_det(i)
       tmp_spin_det => det_i%dn
@@ -377,7 +379,7 @@ module wavefunction_module
       do j = 1, n_dn
         call tmp_spin_det%set_orbital(dn_elec_orbitals(j), .false.)
         idx_list => this%ab_find%beta_m1_lut%get(tmp_spin_det)
-        if (idx_list%is_empty()) then
+        if (.not. associated(idx_list)) then
           call this%ab_find%beta_m1_lut%set(tmp_spin_det, EMPTY_INT_LIST)
           idx_list => this%ab_find%beta_m1_lut%get(tmp_spin_det)
         endif
@@ -400,7 +402,6 @@ module wavefunction_module
     integer :: n
     integer :: n_up
     integer :: n_dn
-    integer :: n_diff
     integer, allocatable :: tmp_connections(:)
     integer, allocatable :: up_elec_orbitals(:)
     integer, allocatable :: dn_elec_orbitals(:)
@@ -453,6 +454,8 @@ module wavefunction_module
     do j = 1, n_up
       call tmp_spin_det%set_orbital(up_elec_orbitals(j), .false.)
       idx_list => this%ab_find%alpha_m1_lut%get(tmp_spin_det)
+      call tmp_spin_det%set_orbital(up_elec_orbitals(j), .true.)
+      if (.not. associated(idx_list)) cycle
       call idx_list%begin()
       list_length = idx_list%get_length()
       do i = 1, list_length
@@ -465,7 +468,6 @@ module wavefunction_module
           this%ab_find%is_alpha_m1_connected(idx) = .true.
         endif
       enddo
-      call tmp_spin_det%set_orbital(up_elec_orbitals(j), .true.)
     enddo
 
     ! beta_m1.
@@ -474,6 +476,8 @@ module wavefunction_module
     do j = 1, n_dn
       call tmp_spin_det%set_orbital(dn_elec_orbitals(j), .false.)
       idx_list => this%ab_find%beta_m1_lut%get(tmp_spin_det)
+      call tmp_spin_det%set_orbital(dn_elec_orbitals(j), .true.)
+      if (.not. associated(idx_list)) cycle
       call idx_list%begin()
       list_length = idx_list%get_length()
       do i = 1, list_length
@@ -485,7 +489,6 @@ module wavefunction_module
           this%ab_find%is_included(idx) = .true.
         endif
       enddo
-      call tmp_spin_det%set_orbital(dn_elec_orbitals(j), .true.)
     enddo
 
     do i = 1, n_alpha_m1_connections

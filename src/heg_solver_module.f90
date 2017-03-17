@@ -73,7 +73,6 @@ module heg_solver_module
 
   subroutine setup(this)
     class(heg_solver_type), intent(inout) :: this
-    integer :: det_size
     integer :: i
     integer :: n_orb
     integer :: n_up, n_dn
@@ -234,10 +233,13 @@ module heg_solver_module
       end if
       call det_eor%up%get_elec_orbitals(eor_up_set_bits, n_eor_up)
       call det_eor%dn%get_elec_orbitals(eor_dn_set_bits, n_eor_dn)
-      k_change = 0.0_DOUBLE
+      k_change = 0
       k_p_set = .false.
       k_q_set = .false.
       k_s_set = .false.
+      orb_p = 0
+      orb_q = 0
+      orb_s = 0
       do i = 1, n_eor_up
         orb_id = eor_up_set_bits(i)
         if (det_pq%up%get_orbital(orb_id)) then
@@ -586,7 +588,6 @@ module heg_solver_module
         integer, intent(out) :: n_pq_pairs
         integer :: i
         integer :: p, q
-        integer :: n_occ_up, n_occ_dn
         integer, allocatable :: occ_up(:), occ_dn(:)
 
         n_pq_pairs = n_up * (n_up - 1) / 2 + n_dn * (n_dn - 1) / 2 + n_up * n_dn
@@ -625,7 +626,7 @@ module heg_solver_module
         integer :: r, s
         integer :: tmp
         integer, dimension(3) :: diff_pq, diff_pr
-        integer, dimension(3) :: diff_pq_idx, diff_pr_idx
+        integer, dimension(3) :: diff_pq_idx
         integer :: p2, q2
 
         p2 = p
