@@ -8,15 +8,14 @@ module spin_det_module
   private
 
   public :: spin_det_type
-  public :: new_spin_det
-  public :: new_spin_det_arr
+  public :: build
   public :: delete
   public :: assignment(=)
   public :: operator(==)
   public :: operator(<)
   public :: operator(>)
 
-  integer :: spin_det_cnt = 0
+  integer :: spin_det_cnt = 0 ! For detecting memory leak.
 
   type spin_det_type
     private
@@ -39,6 +38,18 @@ module spin_det_module
       procedure :: trail_zero
   end type spin_det_type
 
+  interface build
+    module procedure build_spin_det_clone
+    module procedure build_spin_det_by_n_orbs
+    module procedure build_spin_det_by_trunks
+    module procedure build_spin_det_arr
+  end interface build
+
+  interface delete
+    module procedure delete_spin_det
+    module procedure delete_spin_det_arr
+  end interface delete
+
   interface assignment(=)
     module procedure assign_spin_det
   end interface
@@ -55,83 +66,71 @@ module spin_det_module
     module procedure gt_spin_det
   end interface
 
-  interface new_spin_det
-    module procedure new_spin_det_clone
-    module procedure new_spin_det_by_n_orbs
-    module procedure new_spin_det_by_trunks
-  end interface new_spin_det
-
-  interface delete
-    module procedure delete_spin_det
-    module procedure delete_spin_det_arr
-  end interface delete
-
   contains
 
-  function new_spin_det_by_n_orbs(n_orbs) result(res)
+  subroutine build_spin_det_by_n_orbs(this, n_orbs)
+    type(spin_det_type), pointer, intent(inout) :: this
     integer, intent(in) :: n_orbs
-    type(spin_det_type), pointer :: res
     integer :: n_trunks
 
     n_trunks = ceiling(n_orbs * 1.0 / C%TRUNK_SIZE)
-    allocate(res)
-    allocate(res%trunks(n_trunks))
-    res%trunks(:) = 0
-    res%n_trunks = n_trunks
+    allocate(this)
+    allocate(this%trunks(n_trunks))
+    this%trunks(:) = 0
+    this%n_trunks = n_trunks
     spin_det_cnt = spin_det_cnt + 1
-  end function new_spin_det_by_n_orbs
+  end subroutine build_spin_det_by_n_orbs
  
-  function new_spin_det_clone(src) result(res)
+  subroutine build_spin_det_clone(this, src)
+    type(spin_det_type), pointer, intent(inout) :: this
     type(spin_det_type), pointer, intent(in) :: src
-    type(spin_det_type), pointer :: res
     
-    allocate(res)
     if (allocated(src%trunks)) then
-      allocate(res%trunks(src%n_trunks))
-      res%trunks(:) = src%trunks(:)
-      res%n_trunks = src%n_trunks
-      res%n_elec_cache = src%n_elec_cache
+      call build(this, src%trunks)
+      this%n_elec_cache = src%n_elec_cache
+    else
+      allocate(this)
+      spin_det_cnt = spin_det_cnt + 1
     endif
-    spin_det_cnt = spin_det_cnt + 1
-  end function new_spin_det_clone
+  end subroutine build_spin_det_clone
 
-  function new_spin_det_by_trunks(trunks) result(res)
+  subroutine build_spin_det_by_trunks(this, trunks)
+    type(spin_det_type), pointer, intent(inout) :: this
     integer(LONG), intent(in) :: trunks(:)
-    type(spin_det_type), pointer :: res
     integer :: n_trunks
 
     n_trunks = size(trunks)
-    allocate(res)
-    allocate(res%trunks(n_trunks))
-    res%trunks(:) = trunks(:)
-    res%n_trunks = n_trunks
+    allocate(this)
+    allocate(this%trunks(n_trunks))
+    this%trunks(:) = trunks(:)
+    this%n_trunks = n_trunks
     spin_det_cnt = spin_det_cnt + 1
-  end function new_spin_det_by_trunks
+  end subroutine build_spin_det_by_trunks
 
-  function new_spin_det_arr(n) result(res)
+  subroutine build_spin_det_arr(this, n)
+    type(spin_det_type), pointer, intent(inout) :: this(:)
     integer, intent(in) :: n
-    type(spin_det_type), pointer :: res(:)
 
-    allocate(res(n))
+    allocate(this(n))
     spin_det_cnt = spin_det_cnt + n
-  end function new_spin_det_arr
+  end subroutine build_spin_det_arr
 
-  subroutine delete_spin_det(spin_det)
-    type(spin_det_type), pointer, intent(inout) :: spin_det
+  subroutine delete_spin_det(this)
+    type(spin_det_type), pointer, intent(inout) :: this
 
-    if (.not. associated(spin_det)) return
+    if (.not. associated(this)) return
     spin_det_cnt = spin_det_cnt - 1
-    deallocate(spin_det)
-    nullify(spin_det)
+    deallocate(this)
+    nullify(this)
   end subroutine delete_spin_det
 
-  subroutine delete_spin_det_arr(spin_det_arr)
-    type(spin_det_type), pointer, intent(inout) :: spin_det_arr(:)
+  subroutine delete_spin_det_arr(this)
+    type(spin_det_type), pointer, intent(inout) :: this(:)
 
-    if (.not. associated(spin_det_arr)) return
-    spin_det_cnt = spin_det_cnt - size(spin_det_arr)
-    deallocate(spin_det_arr)
-    nullify(spin_det_arr)
+    if (.not. associated(this)) return
+    spin_det_cnt = spin_det_cnt - size(this)
+    deallocate(this)
+    nullify(this)
   end subroutine delete_spin_det_arr
 
   subroutine destroy_orbitals_cache(this)
@@ -410,7 +409,7 @@ module spin_det_module
     do i = 1, this%n_trunks
       sum_trunks = sum_trunks + this%trunks(i)
     enddo
-    hash_value = mod(int(sum_trunks), table_size)
+    hash_value = mod(int(sum_trunks) *  877, table_size)
     if (hash_value <= 0) then
       hash_value = hash_value + table_size
     endif

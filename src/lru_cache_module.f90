@@ -8,8 +8,8 @@ module lru_cache_module
 
   private
 
-  public :: new_lru_cache
   public :: lru_cache_type
+  public :: build
   public :: delete
 
   type lru_cache_type
@@ -21,21 +21,25 @@ module lru_cache_module
       procedure, public :: cache
   end type lru_cache_type
 
+  interface build
+    module procedure build_lru_cache
+  end interface build
+
   interface delete
     module procedure delete_lru_cache
   end interface delete
 
   contains
 
-  function new_lru_cache(capacity) result(cache)
+  subroutine build_lru_cache(this, capacity)
+    type(lru_cache_type), pointer, intent(inout) :: this
     integer, intent(in) :: capacity
-    type(lru_cache_type), pointer :: cache
 
-    allocate(cache)
-    cache%capacity = capacity
-    cache%list => new_doubly_linked_list()
-    cache%map => new_hash_table__det__det_list_node(capacity * 5)
-  end function new_lru_cache
+    allocate(this)
+    this%capacity = capacity
+    call build(this%list)
+    call build(this%map, capacity * 5)
+  end subroutine build_lru_cache
 
   function has(this, key)
     class(lru_cache_type), intent(inout) :: this
@@ -68,7 +72,7 @@ module lru_cache_module
         call delete(node%item)
         call delete(node)
       endif
-      tmp_det => new_det(key)
+      call build(tmp_det, key)
       call this%list%push_front(tmp_det)
       node => this%list%front()
       call this%map%set(tmp_det, node)

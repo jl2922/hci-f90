@@ -8,7 +8,7 @@ module hash_table_module__spin_det__int_list
   private
 
   public :: hash_table_type__spin_det__int_list
-  public :: new_hash_table__spin_det__int_list
+  public :: build
   public :: delete
 
   type hash_table_type__spin_det__int_list
@@ -23,21 +23,25 @@ module hash_table_module__spin_det__int_list
       procedure :: remove
   end type hash_table_type__spin_det__int_list
 
+  interface build
+    module procedure build_hash_table
+  end interface build
+
   interface delete
     module procedure delete_hash_table
   end interface delete
 
   contains
 
-  function new_hash_table__spin_det__int_list(table_size) result(table)
+  subroutine build_hash_table(this, table_size)
     integer, intent(in) :: table_size
-    type(hash_table_type__spin_det__int_list), pointer :: table
+    type(hash_table_type__spin_det__int_list), pointer :: this
 
-    allocate(table)
-    table%keys => new_spin_det_arr(table_size)
-    table%values => new_linked_list_arr__int(table_size, 8)
-    table%table_size = table_size
-  end function new_hash_table__spin_det__int_list
+    allocate(this)
+    call build(this%keys, table_size)
+    call build(this%values, table_size, 8)
+    this%table_size = table_size
+  end subroutine build_hash_table
 
   function has(this, key)
     class(hash_table_type__spin_det__int_list), intent(inout) :: this
@@ -179,7 +183,7 @@ module hash_table_module__det__det_list_node
   private
 
   public :: hash_table_type__det__det_list_node
-  public :: new_hash_table__det__det_list_node
+  public :: build
   public :: delete
 
   type hash_table_type__det__det_list_node
@@ -194,21 +198,25 @@ module hash_table_module__det__det_list_node
       procedure :: remove
   end type hash_table_type__det__det_list_node
 
+  interface build
+    module procedure build_hash_table
+  end interface build
+
   interface delete
     module procedure delete_hash_table
   end interface delete
 
   contains
 
-  function new_hash_table__det__det_list_node(table_size) result(table)
+  subroutine build_hash_table(this, table_size)
     integer, intent(in) :: table_size
-    type(hash_table_type__det__det_list_node), pointer :: table
+    type(hash_table_type__det__det_list_node), pointer :: this
 
-    allocate(table)
-    table%keys => new_det_arr(table_size)
-    table%values => new_doubly_linked_list_node_arr(table_size)
-    table%table_size = table_size
-  end function new_hash_table__det__det_list_node
+    allocate(this)
+    call build(this%keys, table_size)
+    call build(this%values, table_size)
+    this%table_size = table_size
+  end subroutine build_hash_table
 
   function has(this, key)
     class(hash_table_type__det__det_list_node), intent(inout) :: this

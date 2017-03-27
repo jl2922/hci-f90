@@ -1,10 +1,12 @@
-#:set shortname {'integer': 'int', 'real': 'real', 'real(DOUBLE)': 'double'}
-#:for dtype in ['integer', 'real(DOUBLE)']
-module linked_list_module__${shortname[dtype]}$
+#:set dtypes ['int', 'double']
+#:set type_defs {'int': 'integer', 'double': 'real(DOUBLE)'}
+#:for dtype in dtypes
+#:set type_def type_defs[dtype]
+module linked_list_module__${dtype}$
   ! This is a linked list implementation that optimized for speed but does not 
   ! allow removing items.
 
-#:if dtype == 'real(DOUBLE)'
+#:if dtype == 'double'
   use types_module
 #:endif
 
@@ -12,9 +14,8 @@ module linked_list_module__${shortname[dtype]}$
 
   private
 
-  public :: linked_list_type__${shortname[dtype]}$
-  public :: new_linked_list__${shortname[dtype]}$
-  public :: new_linked_list_arr__${shortname[dtype]}$
+  public :: linked_list_type__${dtype}$
+  public :: build
   public :: delete
   public :: assignment(=)
 
@@ -22,11 +23,11 @@ module linked_list_module__${shortname[dtype]}$
 
   type :: node_type
     private
-    ${dtype}$, allocatable :: block(:)
+    ${type_def}$, allocatable :: block(:)
     type(node_type), pointer :: next => null()
   end type node_type
 
-  type :: linked_list_type__${shortname[dtype]}$
+  type :: linked_list_type__${dtype}$
     private
     integer :: n = 0
     integer :: cur_idx = 0
@@ -41,11 +42,16 @@ module linked_list_module__${shortname[dtype]}$
       procedure, public :: next ! Advance the iterator.
       procedure, public :: is_empty
       procedure, public :: get_length
-  end type linked_list_type__${shortname[dtype]}$
+  end type linked_list_type__${dtype}$
+
+  interface build
+    module procedure build_list
+    module procedure build_list_arr
+  end interface build
 
   interface delete
-    module procedure delete_linked_list__${shortname[dtype]}$
-    module procedure delete_linked_list_arr__${shortname[dtype]}$
+    module procedure delete_list
+    module procedure delete_list_arr
   end interface delete
   
   interface assignment(=)
@@ -54,67 +60,65 @@ module linked_list_module__${shortname[dtype]}$
 
   contains
 
-  function new_linked_list__${shortname[dtype]}$( &
-      & block_size_opt) result(list)
-    type(linked_list_type__${shortname[dtype]}$), pointer :: list
+  subroutine build_list(this, block_size_opt)
+    type(linked_list_type__${dtype}$), pointer, intent(inout) :: this
     integer, optional, intent(in) :: block_size_opt
 
-    allocate(list)
+    allocate(this)
     if (present(block_size_opt)) then
-      list%block_size = block_size_opt
+      this%block_size = block_size_opt
     endif
-  end function new_linked_list__${shortname[dtype]}$
+  end subroutine build_list 
 
-  function new_linked_list_arr__${shortname[dtype]}$( &
-      & n, block_size_opt) result(list)
-    type(linked_list_type__${shortname[dtype]}$), pointer :: list(:)
+  subroutine build_list_arr(this, n, block_size_opt)
+    type(linked_list_type__${dtype}$), pointer, intent(inout) :: this(:)
     integer, intent(in) :: n
     integer, optional, intent(in) :: block_size_opt
     integer :: i
 
-    allocate(list(n))
+    allocate(this(n))
     if (present(block_size_opt)) then
       do i = 1, n
-        list(i)%block_size = block_size_opt
+        this(i)%block_size = block_size_opt
       enddo
     endif
-  end function new_linked_list_arr__${shortname[dtype]}$
+  end subroutine build_list_arr 
 
-  subroutine delete_linked_list__${shortname[dtype]}$(list)
-    type(linked_list_type__${shortname[dtype]}$), pointer, intent(inout) :: list
+  subroutine delete_list(this)
+    type(linked_list_type__${dtype}$), pointer, intent(inout) :: this
     type(node_type), pointer :: cur_block, next_block
     
-    next_block => list%head
+    next_block => this%head
     do while(associated(next_block))
       cur_block => next_block
       next_block => next_block%next
       deallocate(cur_block)
     enddo
-    deallocate(list)
-    nullify(list)
-  end subroutine delete_linked_list__${shortname[dtype]}$
+    deallocate(this)
+    nullify(this)
+  end subroutine delete_list
 
-  subroutine delete_linked_list_arr__${shortname[dtype]}$(list)
-    type(linked_list_type__${shortname[dtype]}$), pointer, intent(inout) :: list(:)
+  subroutine delete_list_arr(this)
+    type(linked_list_type__${dtype}$), pointer, intent(inout) :: this(:)
     type(node_type), pointer :: cur_block, next_block
     integer :: i
     
-    do i = 1, size(list)
-      if (.not. associated(list(i)%head)) cycle
-      next_block => list(i)%head
+    do i = 1, size(this)
+      if (.not. associated(this(i)%head)) cycle
+      next_block => this(i)%head
       do while(associated(next_block))
         cur_block => next_block
         next_block => next_block%next
         deallocate(cur_block)
       enddo
     enddo
-    deallocate(list)
-    nullify(list)
-  end subroutine delete_linked_list_arr__${shortname[dtype]}$
+    deallocate(this)
+    nullify(this)
+  end subroutine delete_list_arr
 
   subroutine append(this, item)
-    class(linked_list_type__${shortname[dtype]}$), intent(inout) :: this
-    ${dtype}$, intent(in) :: item
+    class(linked_list_type__${dtype}$), intent(inout) :: this
+    ${type_def}$, intent(in) :: item
     if (this%cur_idx /= this%n) then
       call backtrace
       stop 'cur_idx is not at the end of the list.'
@@ -136,15 +140,15 @@ module linked_list_module__${shortname[dtype]}$
   end subroutine append
 
   subroutine begin(this)
-    class(linked_list_type__${shortname[dtype]}$), intent(inout) :: this
+    class(linked_list_type__${dtype}$), intent(inout) :: this
     this%cur_node => this%head
     this%cur_idx = 1
     this%block_idx_cache = 1
   end subroutine begin
   
   function get(this) result(item)
-    class(linked_list_type__${shortname[dtype]}$), intent(in) :: this
-    ${dtype}$ :: item
+    class(linked_list_type__${dtype}$), intent(in) :: this
+    ${type_def}$ :: item
     if (this%cur_idx > this%n) then
       call backtrace
       stop 'Index out of bound.'
@@ -153,7 +157,7 @@ module linked_list_module__${shortname[dtype]}$
   end function get
 
   subroutine next(this, stat)
-    class(linked_list_type__${shortname[dtype]}$), intent(inout) :: this
+    class(linked_list_type__${dtype}$), intent(inout) :: this
     logical, optional, intent(out) :: stat
     if (this%cur_idx >= this%n) then
       if (present(stat)) stat = .false.
@@ -169,8 +173,8 @@ module linked_list_module__${shortname[dtype]}$
   end subroutine next
 
   subroutine assign_linked_list(dest, src)
-    type(linked_list_type__${shortname[dtype]}$), pointer, intent(in) :: src
-    type(linked_list_type__${shortname[dtype]}$), pointer, intent(out) :: dest
+    type(linked_list_type__${dtype}$), pointer, intent(in) :: src
+    type(linked_list_type__${dtype}$), pointer, intent(out) :: dest
 
     if (.not. src%is_empty()) then
       stop 'Not implemented yet.'
@@ -179,18 +183,18 @@ module linked_list_module__${shortname[dtype]}$
   end subroutine assign_linked_list
 
   function is_empty(this)
-    class(linked_list_type__${shortname[dtype]}$), intent(inout) :: this
+    class(linked_list_type__${dtype}$), intent(inout) :: this
     logical :: is_empty
 
     is_empty = (this%n == 0)
   end function is_empty
 
-  function get_length(this)
-    class(linked_list_type__${shortname[dtype]}$), intent(inout) :: this
-    integer :: get_length
+  function get_length(this) result(length)
+    class(linked_list_type__${dtype}$), intent(inout) :: this
+    integer :: length
 
-    get_length = this%n
+    length = this%n
   end function get_length
 
-end module linked_list_module__${shortname[dtype]}$
+end module linked_list_module__${dtype}$
 #:endfor

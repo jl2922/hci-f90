@@ -9,8 +9,7 @@ module det_module
   private
 
   public :: det_type
-  public :: new_det
-  public :: new_det_arr
+  public :: build
   public :: delete
   public :: assignment(=)
   public :: operator(==)
@@ -29,10 +28,11 @@ module det_module
       procedure, public :: get_n_diff_orbitals
   end type det_type
 
-  interface new_det
-    module procedure new_det_clone
-    module procedure new_det_by_n_orbs
-  end interface new_det
+  interface build
+    module procedure build_det_clone
+    module procedure build_det_by_n_orbs
+    module procedure build_det_arr
+  end interface build
 
   interface delete
     module procedure delete_det
@@ -57,52 +57,52 @@ module det_module
 
   contains
 
-  function new_det_clone(src) result(det)
+  subroutine build_det_clone(this, src)
+    type(det_type), pointer, intent(inout) :: this
     type(det_type), pointer, intent(in) :: src
-    type(det_type), pointer :: det
     
-    allocate(det)
-    det%up => new_spin_det(src%up)
-    det%dn => new_spin_det(src%dn)
-  end function new_det_clone
+    allocate(this)
+    call build(this%up, src%up)
+    call build(this%dn, src%dn)
+  end subroutine build_det_clone
 
-  function new_det_by_n_orbs(n_orbs) result(det)
+  subroutine build_det_by_n_orbs(this, n_orbs)
+    type(det_type), pointer, intent(inout) :: this
     integer, intent(in) :: n_orbs
-    type(det_type), pointer :: det
 
-    allocate(det)
-    det%up => new_spin_det(n_orbs)
-    det%dn => new_spin_det(n_orbs)
-  end function new_det_by_n_orbs
+    allocate(this)
+    call build(this%up, n_orbs)
+    call build(this%dn, n_orbs)
+  end subroutine build_det_by_n_orbs
 
-  function new_det_arr(n) result(arr)
+  subroutine build_det_arr(this, n)
+    type(det_type), pointer, intent(inout) :: this(:)
     integer, intent(in) :: n
-    type(det_type), pointer :: arr(:)
 
-    allocate(arr(n))
-  end function new_det_arr
+    allocate(this(n))
+  end subroutine build_det_arr
 
-  subroutine delete_det(det)
-    type(det_type), pointer :: det
+  subroutine delete_det(this)
+    type(det_type), pointer :: this
 
-    if (.not. associated(det)) return
-    call delete(det%up)
-    call delete(det%dn)
-    deallocate(det)
-    nullify(det)
+    if (.not. associated(this)) return
+    call delete(this%up)
+    call delete(this%dn)
+    deallocate(this)
+    nullify(this)
   end subroutine delete_det
 
-  subroutine delete_det_arr(det_arr)
-    type(det_type), pointer :: det_arr(:)
+  subroutine delete_det_arr(this)
+    type(det_type), pointer :: this(:)
     integer :: i
 
-    if (.not. associated(det_arr)) return
-    do i = 1, size(det_arr)
-      call delete(det_arr(i)%up)
-      call delete(det_arr(i)%dn)
+    if (.not. associated(this)) return
+    do i = 1, size(this)
+      call delete(this(i)%up)
+      call delete(this(i)%dn)
     enddo
-    deallocate(det_arr)
-    nullify(det_arr)
+    deallocate(this)
+    nullify(this)
   end subroutine delete_det_arr
 
   subroutine print(this)

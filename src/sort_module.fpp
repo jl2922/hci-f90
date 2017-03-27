@@ -16,26 +16,27 @@ module sort_module
       & 'double': 'real(DOUBLE)', &
       & 'spin_det': 'type(spin_det_type), pointer', &
       & 'det': 'type(det_type), pointer'}
-  #:set arg_sort_types ['int', 'double', 'spin_det', 'det']
+  #:set dtypes ['int', 'double', 'spin_det', 'det']
 
   type sort_type
     contains
       generic, public :: arg_sort => &
-          #:for arg_sort_type in arg_sort_types[0:-1]
-          & arg_sort__${arg_sort_type}$, &
+          #:for dtype in dtypes[0:-1]
+          & arg_sort__${dtype}$, &
           #:endfor
-          & arg_sort__${arg_sort_types[-1]}$
-      #:for arg_sort_type in arg_sort_types
-      procedure :: arg_sort__${arg_sort_type}$ 
+          & arg_sort__${dtypes[-1]}$
+      #:for dtype in dtypes
+      procedure :: arg_sort__${dtype}$ 
       #:endfor
   end type sort_type
 
   contains
 
-  #:for arg_sort_type in arg_sort_types
-  subroutine arg_sort__${arg_sort_type}$(this, arr, order, n)
+  #:for dtype in dtypes
+  #:set type_def type_defs[dtype]
+  subroutine arg_sort__${dtype}$(this, arr, order, n)
     class(sort_type), intent(in) :: this
-    ${type_defs[arg_sort_type]}$, intent(in) :: arr(:)
+    ${type_def}$, intent(in) :: arr(:)
     integer, allocatable, intent(out) :: order(:)
     integer, intent(in) :: n
     integer :: i
@@ -101,7 +102,7 @@ module sort_module
       end if
     end subroutine recur
 
-  end subroutine arg_sort__${arg_sort_type}$
+  end subroutine arg_sort__${dtype}$
   #:endfor
 
 end module sort_module

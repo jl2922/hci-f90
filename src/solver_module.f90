@@ -147,7 +147,7 @@ module solver_module
     write (6, '(A)') '[VARIATION]'
     write (6, '(A, F0.10)') 'eps_var: ', this%eps_var
     energy_prev = 0
-    wf_prev => new_wavefunction(this%wf)
+    call build(wf_prev, this%wf)
     do i = 1, MAX_VAR_ITERATION
       write (6, '(A, I0)') 'Variation Iteration #', i
       call this%get_next_dets()
@@ -208,7 +208,7 @@ module solver_module
     type(wavefunction_type), pointer :: new_dets
 
     n_dets_old = this%wf%n
-    new_dets => new_wavefunction()
+    call build(new_dets)
     
     do i = 1, n_dets_old
       tmp_det => this%wf%get_det(i)
@@ -254,8 +254,8 @@ module solver_module
       return
     end if
     allocate(n_nonzero_elems(n))
-    H_indices => new_linked_list__int()
-    H_values => new_linked_list__double()
+    call build(H_indices)
+    call build(H_values)
     n_nonzero_elems = 0
     write (6, '(A)') 'Generating sparse hamiltonian...'
     ! call generate_sparse_hamiltonian()
@@ -314,7 +314,7 @@ module solver_module
       type(det_type), pointer :: det_i, det_j
 
       ! Setup alpha_m1 and beta strings.
-      beta => new_spin_det_arr(n)
+      call build(beta, n)
       allocate(beta_idx(n))
       do i = 1, n
         det_i => this%wf%get_det(i)
@@ -323,7 +323,7 @@ module solver_module
       end do
       nullify(det_i)
       call sort_by_first_arg(n, beta, beta_idx)
-      alpha_m1 => new_spin_det_arr(n * n_up)
+      call build(alpha_m1, n * n_up)
       allocate(alpha_m1_idx(n * n_up))
       allocate(up_elec_orbitals(n_up))
       do i = 1, n
@@ -419,7 +419,7 @@ module solver_module
       integer :: i, j
 
       gap = size(arr) / 2
-      tmp_elem => new_spin_det(arr(1))
+      call build(tmp_elem, arr(1))
       do while (gap > 0)
         do i = gap+1, size(arr)
           j = i
@@ -711,7 +711,7 @@ module solver_module
         sum_a = 0.0_DOUBLE
         is_added = .false.
         cnt_tot = cnt_tot + 1
-        print *, 'cnt_tot:', cnt_tot
+        ! print *, 'cnt_tot:', cnt_tot
         call this%wf%find_potential_connections( &
             & det_a, potential_connections, n_connections)
         do j_idx = 1, n_connections

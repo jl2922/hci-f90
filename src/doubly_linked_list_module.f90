@@ -8,9 +8,8 @@ module doubly_linked_list_module
 
   public :: doubly_linked_list_node_type
   public :: doubly_linked_list_type
+  public :: build
   public :: delete
-  public :: new_doubly_linked_list
-  public :: new_doubly_linked_list_node_arr
 
   type doubly_linked_list_node_type
     type(doubly_linked_list_node_type), pointer :: prev => null()
@@ -39,32 +38,38 @@ module doubly_linked_list_module
     module procedure delete_node_arr
   end interface
 
+  interface build
+    module procedure build_node
+    module procedure build_node_arr
+    module procedure build_list
+  end interface build
+
   contains
 
-  function new_node(item) result(node)
+  subroutine build_node(node, item)
+    type(doubly_linked_list_node_type), pointer, intent(inout) :: node
     type(det_type), pointer, intent(in) :: item
-    type(doubly_linked_list_node_type), pointer :: node
 
     allocate(node)
     node%item => item
-  end function new_node
+  end subroutine build_node
 
-  function new_doubly_linked_list_node_arr(n) result(arr)
+  subroutine build_node_arr(arr, n)
+    type(doubly_linked_list_node_type), pointer, intent(inout) :: arr(:)
     integer, intent(in) :: n
-    type(doubly_linked_list_node_type), pointer :: arr(:)
 
     allocate(arr(n))
-  end function new_doubly_linked_list_node_arr
+  end subroutine build_node_arr
 
-  function new_doubly_linked_list() result(list)
-    type(doubly_linked_list_type), pointer :: list
+  subroutine build_list(list)
+    type(doubly_linked_list_type), pointer, intent(inout) :: list
 
     allocate(list)
     allocate(list%head)
     allocate(list%tail)
     list%head%next => list%tail
     list%tail%prev => list%head
-  end function new_doubly_linked_list
+  end subroutine build_list
 
   subroutine delete_list(list)
     type(doubly_linked_list_type), pointer, intent(inout) :: list
@@ -102,7 +107,7 @@ module doubly_linked_list_module
     type(det_type), pointer, intent(in) :: item
     type(doubly_linked_list_node_type), pointer :: node
 
-    node => new_node(item)
+    call build(node, item)
     call this%push_front(node)
   end subroutine push_front_item
 

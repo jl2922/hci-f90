@@ -105,8 +105,8 @@ module heg_solver_module
         & + util%combinatorics%C(n_orb - n_dn, 2)
 
     ! Setup HF determinant.
-    this%wf => new_wavefunction(1)
-    tmp_det => new_det(n_orb)
+    call build(this%wf, 1)
+    call build(tmp_det, n_orb)
     do i = 1, this%n_up
       call tmp_det%up%set_orbital(i, .true.)
     end do
@@ -474,9 +474,9 @@ module heg_solver_module
       return
     end if
     n_orb = this%n_orb
-    zero_det => new_det(n_orb)
-    det_pq => new_det(zero_det)
-    det_rs => new_det(zero_det)
+    call build(zero_det, n_orb)
+    call build(det_pq, zero_det)
+    call build(det_rs, zero_det)
     call delete(zero_det)
     if (p <= n_orb .and. q <= n_orb) then
       call det_pq%up%set_orbital(p, .true.)
@@ -559,15 +559,15 @@ module heg_solver_module
     type(wavefunction_type), pointer, intent(out) :: connected_dets
 
     if (this%max_abs_H < eps_min) then
-      connected_dets => new_wavefunction(1)
+      call build(connected_dets, 1)
       return
     end if
     n_elec = this%n_elec
     n_up = this%n_up
     n_dn = this%n_dn
     n_orb = this%n_orb
-    tmp_det => new_det(n_orb)
-    connected_dets => new_wavefunction(this%max_connected_dets)
+    call build(tmp_det, n_orb)
+    call build(connected_dets, this%max_connected_dets)
     call get_pq_pairs(pq_pairs, n_pq_pairs)
     allocate(rs_pairs(this%max_n_rs_pairs + 1))
     do i = 1, n_pq_pairs

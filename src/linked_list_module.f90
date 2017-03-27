@@ -8,8 +8,7 @@ module linked_list_module__int
   private
 
   public :: linked_list_type__int
-  public :: new_linked_list__int
-  public :: new_linked_list_arr__int
+  public :: build
   public :: delete
   public :: assignment(=)
 
@@ -38,9 +37,14 @@ module linked_list_module__int
       procedure, public :: get_length
   end type linked_list_type__int
 
+  interface build
+    module procedure build_list
+    module procedure build_list_arr
+  end interface build
+
   interface delete
-    module procedure delete_linked_list__int
-    module procedure delete_linked_list_arr__int
+    module procedure delete_list
+    module procedure delete_list_arr
   end interface delete
   
   interface assignment(=)
@@ -49,63 +53,61 @@ module linked_list_module__int
 
   contains
 
-  function new_linked_list__int( &
-      & block_size_opt) result(list)
-    type(linked_list_type__int), pointer :: list
+  subroutine build_list(this, block_size_opt)
+    type(linked_list_type__int), pointer, intent(inout) :: this
     integer, optional, intent(in) :: block_size_opt
 
-    allocate(list)
+    allocate(this)
     if (present(block_size_opt)) then
-      list%block_size = block_size_opt
+      this%block_size = block_size_opt
     endif
-  end function new_linked_list__int
+  end subroutine build_list 
 
-  function new_linked_list_arr__int( &
-      & n, block_size_opt) result(list)
-    type(linked_list_type__int), pointer :: list(:)
+  subroutine build_list_arr(this, n, block_size_opt)
+    type(linked_list_type__int), pointer, intent(inout) :: this(:)
     integer, intent(in) :: n
     integer, optional, intent(in) :: block_size_opt
     integer :: i
 
-    allocate(list(n))
+    allocate(this(n))
     if (present(block_size_opt)) then
       do i = 1, n
-        list(i)%block_size = block_size_opt
+        this(i)%block_size = block_size_opt
       enddo
     endif
-  end function new_linked_list_arr__int
+  end subroutine build_list_arr 
 
-  subroutine delete_linked_list__int(list)
-    type(linked_list_type__int), pointer, intent(inout) :: list
+  subroutine delete_list(this)
+    type(linked_list_type__int), pointer, intent(inout) :: this
     type(node_type), pointer :: cur_block, next_block
     
-    next_block => list%head
+    next_block => this%head
     do while(associated(next_block))
       cur_block => next_block
       next_block => next_block%next
       deallocate(cur_block)
     enddo
-    deallocate(list)
-    nullify(list)
-  end subroutine delete_linked_list__int
+    deallocate(this)
+    nullify(this)
+  end subroutine delete_list
 
-  subroutine delete_linked_list_arr__int(list)
-    type(linked_list_type__int), pointer, intent(inout) :: list(:)
+  subroutine delete_list_arr(this)
+    type(linked_list_type__int), pointer, intent(inout) :: this(:)
     type(node_type), pointer :: cur_block, next_block
     integer :: i
     
-    do i = 1, size(list)
-      if (.not. associated(list(i)%head)) cycle
-      next_block => list(i)%head
+    do i = 1, size(this)
+      if (.not. associated(this(i)%head)) cycle
+      next_block => this(i)%head
       do while(associated(next_block))
         cur_block => next_block
         next_block => next_block%next
         deallocate(cur_block)
       enddo
     enddo
-    deallocate(list)
-    nullify(list)
-  end subroutine delete_linked_list_arr__int
+    deallocate(this)
+    nullify(this)
+  end subroutine delete_list_arr
 
   subroutine append(this, item)
     class(linked_list_type__int), intent(inout) :: this
@@ -180,11 +182,11 @@ module linked_list_module__int
     is_empty = (this%n == 0)
   end function is_empty
 
-  function get_length(this)
+  function get_length(this) result(length)
     class(linked_list_type__int), intent(inout) :: this
-    integer :: get_length
+    integer :: length
 
-    get_length = this%n
+    length = this%n
   end function get_length
 
 end module linked_list_module__int
@@ -199,8 +201,7 @@ module linked_list_module__double
   private
 
   public :: linked_list_type__double
-  public :: new_linked_list__double
-  public :: new_linked_list_arr__double
+  public :: build
   public :: delete
   public :: assignment(=)
 
@@ -229,9 +230,14 @@ module linked_list_module__double
       procedure, public :: get_length
   end type linked_list_type__double
 
+  interface build
+    module procedure build_list
+    module procedure build_list_arr
+  end interface build
+
   interface delete
-    module procedure delete_linked_list__double
-    module procedure delete_linked_list_arr__double
+    module procedure delete_list
+    module procedure delete_list_arr
   end interface delete
   
   interface assignment(=)
@@ -240,63 +246,61 @@ module linked_list_module__double
 
   contains
 
-  function new_linked_list__double( &
-      & block_size_opt) result(list)
-    type(linked_list_type__double), pointer :: list
+  subroutine build_list(this, block_size_opt)
+    type(linked_list_type__double), pointer, intent(inout) :: this
     integer, optional, intent(in) :: block_size_opt
 
-    allocate(list)
+    allocate(this)
     if (present(block_size_opt)) then
-      list%block_size = block_size_opt
+      this%block_size = block_size_opt
     endif
-  end function new_linked_list__double
+  end subroutine build_list 
 
-  function new_linked_list_arr__double( &
-      & n, block_size_opt) result(list)
-    type(linked_list_type__double), pointer :: list(:)
+  subroutine build_list_arr(this, n, block_size_opt)
+    type(linked_list_type__double), pointer, intent(inout) :: this(:)
     integer, intent(in) :: n
     integer, optional, intent(in) :: block_size_opt
     integer :: i
 
-    allocate(list(n))
+    allocate(this(n))
     if (present(block_size_opt)) then
       do i = 1, n
-        list(i)%block_size = block_size_opt
+        this(i)%block_size = block_size_opt
       enddo
     endif
-  end function new_linked_list_arr__double
+  end subroutine build_list_arr 
 
-  subroutine delete_linked_list__double(list)
-    type(linked_list_type__double), pointer, intent(inout) :: list
+  subroutine delete_list(this)
+    type(linked_list_type__double), pointer, intent(inout) :: this
     type(node_type), pointer :: cur_block, next_block
     
-    next_block => list%head
+    next_block => this%head
     do while(associated(next_block))
       cur_block => next_block
       next_block => next_block%next
       deallocate(cur_block)
     enddo
-    deallocate(list)
-    nullify(list)
-  end subroutine delete_linked_list__double
+    deallocate(this)
+    nullify(this)
+  end subroutine delete_list
 
-  subroutine delete_linked_list_arr__double(list)
-    type(linked_list_type__double), pointer, intent(inout) :: list(:)
+  subroutine delete_list_arr(this)
+    type(linked_list_type__double), pointer, intent(inout) :: this(:)
     type(node_type), pointer :: cur_block, next_block
     integer :: i
     
-    do i = 1, size(list)
-      if (.not. associated(list(i)%head)) cycle
-      next_block => list(i)%head
+    do i = 1, size(this)
+      if (.not. associated(this(i)%head)) cycle
+      next_block => this(i)%head
       do while(associated(next_block))
         cur_block => next_block
         next_block => next_block%next
         deallocate(cur_block)
       enddo
     enddo
-    deallocate(list)
-    nullify(list)
-  end subroutine delete_linked_list_arr__double
+    deallocate(this)
+    nullify(this)
+  end subroutine delete_list_arr
 
   subroutine append(this, item)
     class(linked_list_type__double), intent(inout) :: this
@@ -371,11 +375,11 @@ module linked_list_module__double
     is_empty = (this%n == 0)
   end function is_empty
 
-  function get_length(this)
+  function get_length(this) result(length)
     class(linked_list_type__double), intent(inout) :: this
-    integer :: get_length
+    integer :: length
 
-    get_length = this%n
+    length = this%n
   end function get_length
 
 end module linked_list_module__double

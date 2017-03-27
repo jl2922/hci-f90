@@ -6,7 +6,6 @@ module types_module
 
   private
 
-  ! public :: INT8, INT16, INT32, INT64
   public :: DOUBLE
   public :: LONG
 

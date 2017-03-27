@@ -1,8 +1,8 @@
 #:set dtypes ['spin_det__int_list', 'det__det_list_node']
-#:set key_types { &
+#:set key_defs { &
     & 'spin_det__int_list': 'type(spin_det_type), pointer', &
     & 'det__det_list_node': 'type(det_type), pointer'}
-#:set val_types { &
+#:set val_defs { &
     & 'spin_det__int_list': 'type(linked_list_type__int), pointer', &
     & 'det__det_list_node': 'type(doubly_linked_list_node_type), pointer'}
 #:for dtype in dtypes
@@ -16,22 +16,22 @@ module hash_table_module__${dtype}$
   use det_module
   use doubly_linked_list_module
 #:endif
-#:set key_type key_types[dtype]
-#:set val_type val_types[dtype]
+#:set key_def key_defs[dtype]
+#:set val_def val_defs[dtype]
 
   implicit none
 
   private
 
   public :: hash_table_type__${dtype}$
-  public :: new_hash_table__${dtype}$
+  public :: build
   public :: delete
 
   type hash_table_type__${dtype}$
     integer :: table_size
     integer :: n = 0
-    ${key_type}$ :: keys(:) => null()
-    ${val_type}$ :: values(:) => null()
+    ${key_def}$ :: keys(:) => null()
+    ${val_def}$ :: values(:) => null()
     contains
       procedure :: has
       procedure :: get
@@ -39,33 +39,37 @@ module hash_table_module__${dtype}$
       procedure :: remove
   end type hash_table_type__${dtype}$
 
+  interface build
+    module procedure build_hash_table
+  end interface build
+
   interface delete
     module procedure delete_hash_table
   end interface delete
 
   contains
 
-  function new_hash_table__${dtype}$(table_size) result(table)
+  subroutine build_hash_table(this, table_size)
     integer, intent(in) :: table_size
-    type(hash_table_type__${dtype}$), pointer :: table
+    type(hash_table_type__${dtype}$), pointer :: this
 
-    allocate(table)
+    allocate(this)
 #:if dtype == 'spin_det__int_list'
-    table%keys => new_spin_det_arr(table_size)
-    table%values => new_linked_list_arr__int(table_size, 8)
+    call build(this%keys, table_size)
+    call build(this%values, table_size, 8)
 #:endif
 #:if dtype == 'det__det_list_node'
-    table%keys => new_det_arr(table_size)
-    table%values => new_doubly_linked_list_node_arr(table_size)
+    call build(this%keys, table_size)
+    call build(this%values, table_size)
 #:endif
-    table%table_size = table_size
-  end function new_hash_table__${dtype}$
+    this%table_size = table_size
+  end subroutine build_hash_table
 
   function has(this, key)
     class(hash_table_type__${dtype}$), intent(inout) :: this
-    ${key_type}$, intent(inout) :: key
+    ${key_def}$, intent(inout) :: key
     logical :: has
-    ${val_type}$ :: val
+    ${val_def}$ :: val
 
     val => this%get(key)
     has = associated(val)
@@ -73,9 +77,9 @@ module hash_table_module__${dtype}$
 
   function get(this, key) result(val)
     class(hash_table_type__${dtype}$), intent(inout) :: this
-    ${key_type}$, intent(inout) :: key
-    ${val_type}$ :: val
-    ${key_type}$ :: tmp_key
+    ${key_def}$, intent(inout) :: key
+    ${val_def}$ :: val
+    ${key_def}$ :: tmp_key
     integer :: cnt
     integer :: hash_value
 
@@ -105,10 +109,10 @@ module hash_table_module__${dtype}$
 
   subroutine set(this, key, val)
     class(hash_table_type__${dtype}$), intent(inout) :: this
-    ${key_type}$, intent(inout) :: key
-    ${val_type}$, intent(in) :: val
-    ${key_type}$ :: tmp_key
-    ${val_type}$ :: tmp_val
+    ${key_def}$, intent(inout) :: key
+    ${val_def}$, intent(in) :: val
+    ${key_def}$ :: tmp_key
+    ${val_def}$ :: tmp_val
     integer :: cnt
     integer :: hash_value
 
@@ -138,9 +142,9 @@ module hash_table_module__${dtype}$
 
   subroutine remove(this, key)
     class(hash_table_type__${dtype}$), intent(inout) :: this
-    ${key_type}$, intent(in) :: key
-    ${key_type}$ :: tmp_key_prev, tmp_key
-    ${val_type}$ :: tmp_val_prev, tmp_val
+    ${key_def}$, intent(in) :: key
+    ${key_def}$ :: tmp_key_prev, tmp_key
+    ${val_def}$ :: tmp_val_prev, tmp_val
     integer :: hash_value
     integer :: cnt
 

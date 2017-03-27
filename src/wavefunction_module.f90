@@ -14,9 +14,9 @@ module wavefunction_module
   private
 
   public :: wavefunction_type
-  public :: new_wavefunction
-  public :: assignment(=)
+  public :: build
   public :: delete
+  public :: assignment(=)
 
   type ab_find_type
     type(spin_det_type), pointer :: alpha(:) => null()
@@ -54,54 +54,54 @@ module wavefunction_module
       procedure, public :: print
   end type wavefunction_type
 
-  interface new_wavefunction
-    module procedure new_wavefunction_empty
-    module procedure new_wavefunction_reserve
-    module procedure new_wavefunction_clone
-  end interface new_wavefunction
-
-  interface assignment(=)
-    module procedure assign_wavefunction
-  end interface
+  interface build
+    module procedure build_wavefunction_empty
+    module procedure build_wavefunction_reserve
+    module procedure build_wavefunction_clone
+  end interface 
 
   interface delete
     module procedure delete_wavefunction
   end interface delete
 
+  interface assignment(=)
+    module procedure assign_wavefunction
+  end interface
+
   contains
 
-  function new_wavefunction_empty() result(wf)
-    type(wavefunction_type), pointer :: wf
+  subroutine build_wavefunction_empty(this)
+    type(wavefunction_type), pointer, intent(inout) :: this
 
-    allocate(wf)
-  end function new_wavefunction_empty
+    allocate(this)
+  end subroutine build_wavefunction_empty
 
-  function new_wavefunction_clone(src) result(wf)
+  subroutine build_wavefunction_clone(this, src)
+    type(wavefunction_type), pointer, intent(inout) :: this
     type(wavefunction_type), pointer, intent(in) :: src
-    type(wavefunction_type), pointer :: wf
 
-    wf => new_wavefunction_empty()
-    wf = src
-  end function new_wavefunction_clone
+    call build(this)
+    this = src
+  end subroutine build_wavefunction_clone
 
-  function new_wavefunction_reserve(capacity) result(wf)
+  subroutine build_wavefunction_reserve(this, capacity)
+    type(wavefunction_type), pointer, intent(inout) :: this
     integer, intent(in) :: capacity
-    type(wavefunction_type), pointer :: wf
 
-    wf => new_wavefunction_empty()
-    allocate(wf%dets(capacity))
-    allocate(wf%coefs(capacity))
-    wf%coefs(:) = 0
-  end function new_wavefunction_reserve
+    call build(this)
+    allocate(this%dets(capacity))
+    allocate(this%coefs(capacity))
+    this%coefs(:) = 0
+  end subroutine build_wavefunction_reserve
 
-  subroutine delete_wavefunction(wf)
-    type(wavefunction_type), pointer :: wf
+  subroutine delete_wavefunction(this)
+    type(wavefunction_type), pointer, intent(inout) :: this
     
-    if (.not. associated(wf)) return
-    call wf%ab_find%clear()
-    call delete(wf%dets)
-    deallocate(wf)
-    nullify(wf)
+    if (.not. associated(this)) return
+    call this%ab_find%clear()
+    call delete(this%dets)
+    deallocate(this)
+    nullify(this)
   end subroutine delete_wavefunction
 
   subroutine assign_wavefunction(dest, src)
@@ -175,8 +175,8 @@ module wavefunction_module
 
     if (idx > this%n) stop 'set_det with idx out of bound.'
     det => this%get_det(idx)
-    det%up => new_spin_det(src%up)
-    det%dn => new_spin_det(src%dn)
+    call build(det%up, src%up)
+    call build(det%dn, src%dn)
     if (this%n > 1) then
       this%is_sorted = .false.
     end if
@@ -314,11 +314,11 @@ module wavefunction_module
     this%ab_find%is_included = .false.
     allocate(this%ab_find%is_alpha_m1_connected(n))
     this%ab_find%is_alpha_m1_connected = .false.
-    this%ab_find%lru => new_lru_cache(int(1e7))
+    call build(this%ab_find%lru, int(1e7))
 
     ! Setup alpha and beta.
-    this%ab_find%alpha => new_spin_det_arr(n)
-    this%ab_find%beta => new_spin_det_arr(n)
+    call build(this%ab_find%alpha, n)
+    call build(this%ab_find%beta, n)
     allocate(this%ab_find%alpha_idx(n))
     allocate(this%ab_find%beta_idx(n))
     do i = 1, n
@@ -349,7 +349,7 @@ module wavefunction_module
     n_up = tmp_det%up%get_n_elec()
     this%n_up = n_up
     allocate(up_elec_orbitals(n_up))
-    this%ab_find%alpha_m1_lut => new_hash_table__spin_det__int_list(n * n_up)
+    call build(this%ab_find%alpha_m1_lut, n * n_up)
     do i = 1, n
       det_i => this%get_det(i)
       tmp_spin_det => det_i%up
@@ -371,7 +371,7 @@ module wavefunction_module
     n_dn = tmp_det%dn%get_n_elec()
     this%n_dn = n_dn
     allocate(dn_elec_orbitals(n_dn))
-    this%ab_find%beta_m1_lut => new_hash_table__spin_det__int_list(n * n_up)
+    call build(this%ab_find%beta_m1_lut, n * n_up)
     do i = 1, n
       det_i => this%get_det(i)
       tmp_spin_det => det_i%dn
