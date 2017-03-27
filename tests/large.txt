@@ -1,0 +1,15 @@
+&system
+name='heg'
+/
+
+&hci
+eps_var = 1.0e-3
+eps_pt = 1.0e-5
+n_up = 7
+n_dn = 7
+/
+
+&heg
+r_cutoff=2.50
+r_s=0.5
+/
