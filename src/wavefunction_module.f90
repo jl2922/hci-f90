@@ -47,11 +47,13 @@ module wavefunction_module
       procedure, public :: find_potential_connections_setup
       procedure, public :: get_coef
       procedure, public :: get_det
+      procedure, public :: merge_sorted_dets
       procedure, public :: set_coef
       procedure, public :: set_det
-      procedure, public :: sort_dets ! Into ascending order.
-      procedure, public :: merge_sorted_dets
+      procedure, public :: sort_dets ! Into ascending dictionary order.
+      procedure, public :: sort_dets_by_coefs ! Into descending abs coef order.
       procedure, public :: print
+      procedure :: reorder_dets
   end type wavefunction_type
 
   interface build
@@ -196,29 +198,57 @@ module wavefunction_module
 
   subroutine sort_dets(this)
     class(wavefunction_type), intent(inout) :: this
+    integer :: n
+    integer, allocatable :: order(:)
+
+    n = this%n
+    if (n == 0) return
+    call util%sort%arg_sort(this%dets, order, n)
+    call this%reorder_dets(order)
+    this%is_sorted = .true.
+  end subroutine sort_dets
+
+  subroutine sort_dets_by_coefs(this)
+    class(wavefunction_type), intent(inout) :: this
     integer :: i
     integer :: n
     integer, allocatable :: order(:)
+    real(DOUBLE), allocatable :: abs_coefs(:)
+
+    n = this%n
+    if (n == 0) return
+    if (.not. allocated(order)) allocate(order(n))
+    allocate(abs_coefs(n))
+    do i = 1, n
+      abs_coefs(i) = abs(this%get_coef(i))
+    enddo
+    call util%sort%arg_sort(-abs_coefs, order, n)
+    call this%reorder_dets(order)
+  end subroutine
+
+  subroutine reorder_dets(this, order)
+    class(wavefunction_type), intent(inout) :: this
+    integer, allocatable, intent(in) :: order(:)
+    integer :: i
+    integer :: n
     type(det_type), pointer :: sorted_dets(:)
     real(DOUBLE), allocatable :: sorted_coefs(:)
     type(det_type), pointer :: det_ptr
 
     n = this%n
     if (n == 0) return
-    call util%sort%arg_sort(this%dets, order, n)
     allocate(sorted_dets(n))
     allocate(sorted_coefs(n))
     do i = 1, n
       det_ptr => sorted_dets(i)
       det_ptr = this%get_det(order(i))
-      sorted_coefs(i) = this%get_coef(i)
+      sorted_coefs(i) = this%get_coef(order(i))
     enddo
     call delete(this%dets)
     nullify(det_ptr)
     this%dets => sorted_dets
     call move_alloc(sorted_coefs, this%coefs)
-    this%is_sorted = .true.
-  end subroutine sort_dets
+  end subroutine
 
   subroutine merge_sorted_dets(this, dets)
     ! Merge two sorted dets array into one sorted dets array.
