@@ -78,7 +78,7 @@ module heg_solver_module
     integer :: n_up, n_dn
     real(DOUBLE) :: cell_length
     real(DOUBLE) :: density
-    real(DOUBLE) :: HF_energy
+    real(DOUBLE) :: hf_energy
     real(DOUBLE) :: k_unit
     type(det_type), pointer :: tmp_det
 
@@ -115,10 +115,10 @@ module heg_solver_module
     end do
     call this%wf%append_det(tmp_det)
     call this%wf%set_coef(1, 1.0_DOUBLE)
-    HF_energy = this%get_hamiltonian_elem(tmp_det, tmp_det)
+    hf_energy = this%get_hamiltonian_elem(tmp_det, tmp_det)
     call delete(tmp_det)
-    write (6, '(A, F0.10)') 'HF energy: ', HF_energy
-    this%HF_energy = HF_energy
+    write (6, '(A, F0.10)') 'HF energy: ', hf_energy
+    this%hf_energy = hf_energy
 
     call this%generate_orbital_lut()
     call this%generate_hci_queue()

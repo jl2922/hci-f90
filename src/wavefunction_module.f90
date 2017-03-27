@@ -514,7 +514,7 @@ module wavefunction_module
 
     do i = 1, this%n
       det_ptr => this%get_det(i)
-      write (6, '(A, I0, A, F0.10)'), 'det #', i, ', coef = ', this%coefs(i)
+      write (6, '(A, I0, A, F0.10)') 'det #', i, ', coef = ', this%coefs(i)
       call det_ptr%print()
     enddo
   end subroutine print

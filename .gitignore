@@ -2,6 +2,7 @@ hci
 profile
 *.txt
 *.log
+*.dSYM
 
 # Compiled Object files
 *.slo

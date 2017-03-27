@@ -2,6 +2,7 @@ module solver_module
 
   use constants_module
   use det_module
+  use lru_cache_module
   use linked_list_module__int
   use linked_list_module__double
   use spin_det_module
@@ -31,7 +32,7 @@ module solver_module
     real(DOUBLE), public :: eps_var
     real(DOUBLE), public :: eps_pt
     real(DOUBLE), public :: tol
-    real(DOUBLE), public :: HF_energy
+    real(DOUBLE), public :: hf_energy
     real(DOUBLE), public :: var_energy
     real(DOUBLE), public :: pt_det_energy
     real(DOUBLE), public :: pt_st_energy
@@ -250,7 +251,7 @@ module solver_module
     n = this%wf%n
     n_up = this%n_up
     if (n == 1) then
-      lowest_eigenvalue = this%HF_energy
+      lowest_eigenvalue = this%hf_energy
       return
     end if
     allocate(n_nonzero_elems(n))
@@ -294,154 +295,6 @@ module solver_module
     call delete(H_values)
 
     contains
-
-    subroutine generate_sparse_hamiltonian()
-      integer :: cnt
-      integer :: i, j, k
-      integer :: ii
-      integer :: left, right
-      integer, allocatable :: up_elec_orbitals(:)
-      integer, allocatable :: alpha_m1_idx(:)
-      integer, allocatable :: beta_idx(:)
-      integer, allocatable :: tmp_H_indices(:)
-      integer, allocatable :: order(:)
-      logical, allocatable :: is_included(:)
-      real(DOUBLE) :: H
-      real(DOUBLE), allocatable :: tmp_H_values(:)
-      type(spin_det_type), target :: tmp_spin_det
-      type(spin_det_type), pointer :: alpha_m1(:)
-      type(spin_det_type), pointer :: beta(:)
-      type(det_type), pointer :: det_i, det_j
-
-      ! Setup alpha_m1 and beta strings.
-      call build(beta, n)
-      allocate(beta_idx(n))
-      do i = 1, n
-        det_i => this%wf%get_det(i)
-        beta(i) = det_i%dn
-        beta_idx(i) = i
-      end do
-      nullify(det_i)
-      call sort_by_first_arg(n, beta, beta_idx)
-      call build(alpha_m1, n * n_up)
-      allocate(alpha_m1_idx(n * n_up))
-      allocate(up_elec_orbitals(n_up))
-      do i = 1, n
-        det_i => this%wf%get_det(i)
-        call det_i%up%get_elec_orbitals(up_elec_orbitals, n_up)
-        do j = 1, n_up
-          alpha_m1(n_up * (i - 1) + j) = det_i%up
-          call alpha_m1(n_up * (i - 1) + j)%set_orbital( &
-              & up_elec_orbitals(j), .false.)
-        end do
-        alpha_m1_idx(n_up * (i - 1) + 1: n_up * i) = i
-      end do
-      nullify(det_i)
-      call sort_by_first_arg(n, alpha_m1, alpha_m1_idx)
-      write (6, '(A)') 'alpha and beta strings created.'
-
-      ! Generate H with the helper strings.
-      allocate(tmp_H_indices(n))
-      allocate(tmp_H_values(n))
-      allocate(is_included(n))
-      is_included = .false.
-      do i = 1, n
-        ! Diagonal elem.
-        det_i => this%wf%get_det(i)
-        cnt = 1
-        tmp_H_indices(cnt) = i
-        tmp_H_values(cnt) = this%get_hamiltonian_elem(det_i, det_i)
-        is_included(i) = .true.
-
-        ! 2 up.
-        left = util%search%binary_search_lbound(det_i%dn, beta)
-        right = util%search%binary_search_rbound(det_i%dn, beta)
-        do k = left, right
-          j = beta_idx(k)
-          if (.not. beta(k) == det_i%dn) cycle
-          if (j > i .and. (.not. is_included(j))) then
-            det_j => this%wf%get_det(j)
-            H = this%get_hamiltonian_elem(det_i, det_j)
-            if (abs(H) > C%EPS) then
-              cnt = cnt + 1
-              tmp_H_indices(cnt) = j
-              tmp_H_values(cnt) = H
-              is_included(j) = .true.
-            end if
-          end if
-        enddo
-
-        ! 2 dn or (1 up and 1 dn).
-        tmp_spin_det = det_i%up
-        call tmp_spin_det%get_elec_orbitals(up_elec_orbitals, n_up)
-        do ii = 1, n_up
-          call tmp_spin_det%set_orbital(up_elec_orbitals(ii), .false.)
-          left = util%search%binary_search_lbound(tmp_spin_det, alpha_m1)
-          right = util%search%binary_search_rbound(tmp_spin_det, alpha_m1)
-          do k = left, right
-            j = alpha_m1_idx(k)
-            if (j > i .and. (.not. is_included(j))) then
-              det_j => this%wf%get_det(j)
-              H = this%get_hamiltonian_elem(det_i, det_j)
-              if (abs(H) > C%EPS) then
-                cnt = cnt + 1
-                tmp_H_indices(cnt) = j
-                tmp_H_values(cnt) = H
-                is_included(j) = .true.
-              end if
-            end if
-          enddo
-          call tmp_spin_det%set_orbital(up_elec_orbitals(ii), .true.)
-        end do
-
-        ! Add to H.
-        call util%sort%arg_sort(tmp_H_indices, order, cnt)
-        do ii = 1, cnt
-          j = order(ii)
-          call H_indices%append(tmp_H_indices(j))
-          call H_values%append(tmp_H_values(j))
-          is_included(tmp_H_indices(j)) = .false.
-        end do
-        n_nonzero_elems(i) = cnt
-      end do
-      call delete(beta)
-      call delete(alpha_m1)
-      write (6, '(A, G0.10)') 'Nonzero elems in H: ', sum(n_nonzero_elems)
-    end subroutine generate_sparse_hamiltonian
-
-    subroutine sort_by_first_arg(n, arr, idx)
-      integer, intent(in) :: n
-      type(spin_det_type), pointer, intent(inout) :: arr(:)
-      integer, intent(inout) :: idx(:)
-      integer :: gap
-      type(spin_det_type), pointer :: tmp_elem
-      integer :: tmp_idx
-      integer :: i, j
-
-      gap = size(arr) / 2
-      call build(tmp_elem, arr(1))
-      do while (gap > 0)
-        do i = gap+1, size(arr)
-          j = i
-          tmp_elem = arr(i)
-          tmp_idx = idx(i)
-          do while (j >= gap+1)
-            if (.not. (arr(j - gap) > tmp_elem)) exit
-            arr(j) = arr(j-gap)
-            idx(j) = idx(j-gap)
-            j = j - gap
-          end do
-          arr(j) = tmp_elem
-          idx(j) = tmp_idx
-        end do
-        if (gap == 2) then
-          gap = 1
-        else
-          gap = gap * 5 / 11
-        end if
-      end do
-      call delete(tmp_elem)
-    end subroutine sort_by_first_arg
 
 !=============================================================================== 
     subroutine davidson_sparse(n,n_states,final_vector,lowest_eigenvalues,matrix_indices,nelem_nonzero,matrix_values,initial_vector)
@@ -687,6 +540,8 @@ module solver_module
     real(DOUBLE) :: term
     type(det_type), pointer :: det_i, det_j, det_a
     type(wavefunction_type), pointer :: connected_dets
+    type(lru_cache_type), pointer :: var_dets
+    
     integer, allocatable :: potential_connections(:)
     integer :: cnt
     integer :: cnt_tot
@@ -697,6 +552,11 @@ module solver_module
     call this%wf%find_potential_connections_setup()
     cnt = 0
     cnt_tot = 0
+    call build(var_dets, this%wf%n * 5)
+    do i = 1, this%wf%n
+      det_i => this%wf%get_det(i)
+      call var_dets%cache(det_i)
+    enddo
     do i = 1, this%wf%n
       det_i => this%wf%get_det(i)
       call this%find_connected_dets( &
@@ -704,14 +564,13 @@ module solver_module
       do a = 1, connected_dets%n
         det_a => connected_dets%get_det(a)
         if (det_a == det_i) cycle
+        if (var_dets%has(det_a)) cycle
         if (this%wf%ab_find%lru%has(det_a)) then
-          ! print *, 'here'
           cycle
         endif
         sum_a = 0.0_DOUBLE
         is_added = .false.
         cnt_tot = cnt_tot + 1
-        ! print *, 'cnt_tot:', cnt_tot
         call this%wf%find_potential_connections( &
             & det_a, potential_connections, n_connections)
         do j_idx = 1, n_connections
@@ -720,6 +579,7 @@ module solver_module
           if (det_a == det_j) then
             cnt = cnt + 1
             is_added = .true.
+            print *, cnt, cnt_tot, 'det_a = det_j'
             exit
           endif
           H_aj = this%get_hamiltonian_elem(det_a, det_j)
@@ -731,7 +591,9 @@ module solver_module
             cycle
           else
             if (j < i) then
+              cnt = cnt + 1
               is_added = .true.
+              print *, cnt, cnt_tot, 'det_a = det_j'
               exit
             else
               sum_a = sum_a + term
@@ -753,8 +615,10 @@ module solver_module
   subroutine summary(this)
     class(solver_type), intent(inout) :: this
     real(DOUBLE) :: total_energy
+    real(DOUBLE) :: correlation_energy
 
     total_energy = this%var_energy + this%pt_det_energy + this%pt_st_energy
+    correlation_energy = total_energy - this%hf_energy
 
     write (6, '(A, F0.10)') 'Variational Energy: ', this%var_energy
     write (6, '(A, G0.10)') 'Number of variational dets: ', this%wf%n
@@ -764,6 +628,8 @@ module solver_module
         & ' +- ', this%pt_st_uncert
     write (6, '(A, F0.10, A, F0.10)') &
         & 'Final Energy: ', total_energy, ' +- ', this%pt_st_uncert
+    write (6, '(A, F0.10, A, F0.10)') &
+        & 'Correlation Energy: ', correlation_energy , ' +- ', this%pt_st_uncert
   end subroutine summary
 
 end module solver_module
