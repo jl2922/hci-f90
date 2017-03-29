@@ -486,6 +486,7 @@ module wavefunction_module
       idx_list => this%ab_find%alpha_m1_lut%get(tmp_spin_det)
       call tmp_spin_det%set_orbital(up_elec_orbitals(j), .true.)
       if (.not. associated(idx_list)) cycle
+      call idx_list%freeze()
       call idx_list%begin()
       list_length = idx_list%get_length()
       do i = 1, list_length
@@ -508,6 +509,7 @@ module wavefunction_module
       idx_list => this%ab_find%beta_m1_lut%get(tmp_spin_det)
       call tmp_spin_det%set_orbital(dn_elec_orbitals(j), .true.)
       if (.not. associated(idx_list)) cycle
+      call idx_list%freeze()
       call idx_list%begin()
       list_length = idx_list%get_length()
       do i = 1, list_length

@@ -549,6 +549,7 @@ module solver_module
     pt_energy = 0.0_DOUBLE
     var_energy = this%var_energy
     eps_pt = this%eps_pt
+    call this%wf%sort_dets_by_coefs()
     call this%wf%find_potential_connections_setup()
     cnt = 0
     cnt_tot = 0

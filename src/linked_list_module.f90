@@ -26,6 +26,8 @@ module linked_list_module__int
     integer :: cur_idx = 0
     integer :: block_idx_cache = 0 ! Item index inside a block.
     integer :: block_size = DEFAULT_BLOCK_SIZE
+    integer, allocatable :: items(:)
+    logical :: freezed = .false.
     type(node_type), pointer :: head => null()
     type(node_type), pointer :: cur_node => null()
     contains     
@@ -35,6 +37,7 @@ module linked_list_module__int
       procedure, public :: next ! Advance the iterator.
       procedure, public :: is_empty
       procedure, public :: get_length
+      procedure, public :: freeze
   end type linked_list_type__int
 
   interface build
@@ -134,8 +137,10 @@ module linked_list_module__int
 
   subroutine begin(this)
     class(linked_list_type__int), intent(inout) :: this
-    this%cur_node => this%head
+
     this%cur_idx = 1
+    if (this%freezed) return
+    this%cur_node => this%head
     this%block_idx_cache = 1
   end subroutine begin
   
@@ -146,7 +151,11 @@ module linked_list_module__int
       call backtrace
       stop 'Index out of bound.'
     endif
-    item = this%cur_node%block(this%block_idx_cache)
+    if (this%freezed) then
+      item = this%items(this%cur_idx)
+    else
+      item = this%cur_node%block(this%block_idx_cache)
+    endif
   end function get
 
   subroutine next(this, stat)
@@ -157,12 +166,15 @@ module linked_list_module__int
       return
     endif
     this%cur_idx = this%cur_idx + 1
+    if(present(stat)) stat = .true.
+    if (this%freezed) then
+      return
+    endif
     this%block_idx_cache = this%block_idx_cache + 1
     if (this%block_idx_cache > this%block_size) then
       this%block_idx_cache = 1
       this%cur_node => this%cur_node%next 
     endif
-    if(present(stat)) stat = .true.
   end subroutine next
 
   subroutine assign_linked_list(dest, src)
@@ -188,6 +200,29 @@ module linked_list_module__int
 
     length = this%n
   end function get_length
+
+  subroutine freeze(this)
+    class(linked_list_type__int), intent(inout) :: this
+    integer :: n
+    integer :: i
+    integer :: idx
+    type(node_type), pointer :: cur_node
+
+    if (this%freezed) return
+    n = this%n
+    allocate(this%items(n))
+    idx = 1
+    cur_node => this%head
+    do i = 1, n
+      this%items(i) = cur_node%block(idx)
+      idx = idx + 1
+      if (idx > this%block_size) then
+        cur_node => cur_node%next
+        idx = 1
+      endif
+    enddo
+    this%freezed = .true.
+  end subroutine
 
 end module linked_list_module__int
 module linked_list_module__double
@@ -219,6 +254,8 @@ module linked_list_module__double
     integer :: cur_idx = 0
     integer :: block_idx_cache = 0 ! Item index inside a block.
     integer :: block_size = DEFAULT_BLOCK_SIZE
+    real(DOUBLE), allocatable :: items(:)
+    logical :: freezed = .false.
     type(node_type), pointer :: head => null()
     type(node_type), pointer :: cur_node => null()
     contains     
@@ -228,6 +265,7 @@ module linked_list_module__double
       procedure, public :: next ! Advance the iterator.
       procedure, public :: is_empty
       procedure, public :: get_length
+      procedure, public :: freeze
   end type linked_list_type__double
 
   interface build
@@ -327,8 +365,10 @@ module linked_list_module__double
 
   subroutine begin(this)
     class(linked_list_type__double), intent(inout) :: this
-    this%cur_node => this%head
+
     this%cur_idx = 1
+    if (this%freezed) return
+    this%cur_node => this%head
     this%block_idx_cache = 1
   end subroutine begin
   
@@ -339,7 +379,11 @@ module linked_list_module__double
       call backtrace
       stop 'Index out of bound.'
     endif
-    item = this%cur_node%block(this%block_idx_cache)
+    if (this%freezed) then
+      item = this%items(this%cur_idx)
+    else
+      item = this%cur_node%block(this%block_idx_cache)
+    endif
   end function get
 
   subroutine next(this, stat)
@@ -350,12 +394,15 @@ module linked_list_module__double
       return
     endif
     this%cur_idx = this%cur_idx + 1
+    if(present(stat)) stat = .true.
+    if (this%freezed) then
+      return
+    endif
     this%block_idx_cache = this%block_idx_cache + 1
     if (this%block_idx_cache > this%block_size) then
       this%block_idx_cache = 1
       this%cur_node => this%cur_node%next 
     endif
-    if(present(stat)) stat = .true.
   end subroutine next
 
   subroutine assign_linked_list(dest, src)
@@ -381,5 +428,28 @@ module linked_list_module__double
 
     length = this%n
   end function get_length
+
+  subroutine freeze(this)
+    class(linked_list_type__double), intent(inout) :: this
+    integer :: n
+    integer :: i
+    integer :: idx
+    type(node_type), pointer :: cur_node
+
+    if (this%freezed) return
+    n = this%n
+    allocate(this%items(n))
+    idx = 1
+    cur_node => this%head
+    do i = 1, n
+      this%items(i) = cur_node%block(idx)
+      idx = idx + 1
+      if (idx > this%block_size) then
+        cur_node => cur_node%next
+        idx = 1
+      endif
+    enddo
+    this%freezed = .true.
+  end subroutine
 
 end module linked_list_module__double
