@@ -15,6 +15,7 @@ module doubly_linked_list_module
     type(doubly_linked_list_node_type), pointer :: prev => null()
     type(doubly_linked_list_node_type), pointer :: next => null()
     type(det_type), pointer :: item => null()
+    integer :: val = 0 ! TODO: Refactor.
   end type doubly_linked_list_node_type
 
   type doubly_linked_list_type

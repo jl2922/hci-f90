@@ -49,9 +49,10 @@ module lru_cache_module
     has = this%map%has(key)
   end function has
 
-  subroutine cache(this, key)
+  subroutine cache(this, key, val)
     class(lru_cache_type), intent(inout) :: this
     type(det_type), pointer, intent(inout) :: key
+    integer, optional, intent(in) :: val
     type(doubly_linked_list_node_type), pointer :: node
     type(det_type), pointer :: tmp_det
 
@@ -76,6 +77,9 @@ module lru_cache_module
       call this%list%push_front(tmp_det)
       node => this%list%front()
       call this%map%set(tmp_det, node)
+      if (present(val)) then
+        node%val = val
+      endif
     endif
   end subroutine cache
 

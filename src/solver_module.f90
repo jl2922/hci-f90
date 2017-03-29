@@ -538,8 +538,10 @@ module solver_module
     real(DOUBLE) :: var_energy
     real(DOUBLE) :: sum_a
     real(DOUBLE) :: term
+    real(DOUBLE) :: coef_max
     type(det_type), pointer :: det_i, det_j, det_a
-    type(wavefunction_type), pointer :: connected_dets
+    type(wavefunction_type), pointer :: connected_dets_i
+    type(wavefunction_type), pointer :: connected_dets_a
     type(lru_cache_type), pointer :: var_dets
     
     integer, allocatable :: potential_connections(:)
@@ -556,15 +558,18 @@ module solver_module
     call build(var_dets, this%wf%n * 5)
     do i = 1, this%wf%n
       det_i => this%wf%get_det(i)
-      call var_dets%cache(det_i)
+      call var_dets%cache(det_i, i)
+    enddo
+    coef_max = 0.0_DOUBLE
+    do i = 1, this%wf%n
+      coef_max = max(coef_max, abs(this%wf%get_coef(i)))
     enddo
     do i = 1, this%wf%n
       det_i => this%wf%get_det(i)
       call this%find_connected_dets( &
-          & det_i, eps_pt / abs(this%wf%get_coef(i)), connected_dets)
-      do a = 1, connected_dets%n
-        det_a => connected_dets%get_det(a)
-        if (det_a == det_i) cycle
+          & det_i, eps_pt / abs(this%wf%get_coef(i)), connected_dets_i)
+      do a = 1, connected_dets_i%n
+        det_a => connected_dets_i%get_det(a)
         if (var_dets%has(det_a)) cycle
         if (this%wf%ab_find%lru%has(det_a)) then
           cycle
@@ -573,35 +578,40 @@ module solver_module
         sum_a = 0.0_DOUBLE
         is_added = .false.
         cnt_tot = cnt_tot + 1
-        call this%wf%find_potential_connections( &
-            & det_a, potential_connections, n_connections)
-        do j_idx = 1, n_connections
-          j = potential_connections(j_idx)
-          det_j => this%wf%get_det(j)
-          if (det_a == det_j) then
-            cnt = cnt + 1
-            is_added = .true.
-            print *, cnt, cnt_tot, 'det_a = det_j'
-            exit
-          endif
-          H_aj = this%get_hamiltonian_elem(det_a, det_j)
-          if (abs(H_aj) < C%EPS) then
-            cycle
-          endif
-          term = H_aj * this%wf%get_coef(j)
-          if (abs(term) < eps_pt) then
-            cycle
-          else
-            if (j < i) then
-              cnt = cnt + 1
-              is_added = .true.
-              print *, cnt, cnt_tot, 'det_a = det_j'
-              exit
-            else
-              sum_a = sum_a + term
-            endif
-          endif
+        call this%find_connected_dets(det_a, eps_pt / coef_max, connected_dets_a)
+        do j_idx = 1, connected_dets_a%n
+          det_j => connected_dets_a%get_det(j)
+          
         enddo
+        ! call this%wf%find_potential_connections( &
+        !     & det_a, potential_connections, n_connections)
+        ! do j_idx = 1, n_connections
+        !   j = potential_connections(j_idx)
+        !   det_j => this%wf%get_det(j)
+        !   if (det_a == det_j) then
+        !     cnt = cnt + 1
+        !     is_added = .true.
+        !     print *, cnt, cnt_tot, 'det_a = det_j'
+        !     exit
+        !   endif
+        !   H_aj = this%get_hamiltonian_elem(det_a, det_j)
+        !   if (abs(H_aj) < C%EPS) then
+        !     cycle
+        !   endif
+        !   term = H_aj * this%wf%get_coef(j)
+        !   if (abs(term) < eps_pt) then
+        !     cycle
+        !   else
+        !     if (j < i) then
+        !       cnt = cnt + 1
+        !       is_added = .true.
+        !       print *, cnt, cnt_tot, 'det_a = det_j'
+        !       exit
+        !     else
+        !       sum_a = sum_a + term
+        !     endif
+        !   endif
+        ! enddo
         if (is_added) then
           cycle
         endif
@@ -609,7 +619,7 @@ module solver_module
         pt_energy = pt_energy + sum_a**2 / (var_energy - E_a)
         
       enddo
-      call delete(connected_dets)
+      call delete(connected_dets_i)
     enddo
     this%pt_det_energy = pt_energy
   end subroutine pt_det
