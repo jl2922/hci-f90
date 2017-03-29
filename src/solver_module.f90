@@ -569,6 +569,7 @@ module solver_module
         if (this%wf%ab_find%lru%has(det_a)) then
           cycle
         endif
+        call this%wf%ab_find%lru%cache(det_a)
         sum_a = 0.0_DOUBLE
         is_added = .false.
         cnt_tot = cnt_tot + 1
@@ -606,7 +607,7 @@ module solver_module
         endif
         E_a = this%get_hamiltonian_elem(det_a, det_a)
         pt_energy = pt_energy + sum_a**2 / (var_energy - E_a)
-        call this%wf%ab_find%lru%cache(det_a)
+        
       enddo
       call delete(connected_dets)
     enddo

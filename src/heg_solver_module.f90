@@ -63,7 +63,7 @@ module heg_solver_module
     if (io_err > 0) stop 'Cannot read HEG configs.'
     if (r_cutoff < 0 .or. r_s < 0) then
       stop 'r_cutoff, r_s must be provided for heg system.'
-    end if
+    endif
     this%heg%r_cutoff = r_cutoff
     this%heg%r_s = r_s
     write (6, '(A, F0.10)') 'heg%r_cutoff: ', r_cutoff
