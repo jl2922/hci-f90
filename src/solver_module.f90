@@ -174,6 +174,7 @@ module solver_module
       energy_prev = energy_cur
       wf_prev = this%wf
     end do
+    call this%wf%dump("WAVE")
     write (6, '()')
 
     write (6, '(A)') '[PERTURBATION]'

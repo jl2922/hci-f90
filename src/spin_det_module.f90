@@ -232,7 +232,7 @@ module spin_det_module
       n_elec = this%get_n_elec()
     endif
     this%n_elec_cache = n_elec
-    allocate(orbitals(n_elec))
+    if (.not. allocated(orbitals)) allocate(orbitals(n_elec))
     call tmp_spin_det%resize(this%n_trunks)
     tmp_spin_det%trunks(:) = this%trunks(:)
     do i = 1, n_elec

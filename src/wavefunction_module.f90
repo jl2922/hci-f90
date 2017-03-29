@@ -53,6 +53,7 @@ module wavefunction_module
       procedure, public :: sort_dets ! Into ascending dictionary order.
       procedure, public :: sort_dets_by_coefs ! Into descending abs coef order.
       procedure, public :: print
+      procedure, public :: dump
       procedure :: reorder_dets
   end type wavefunction_type
 
@@ -571,5 +572,33 @@ module wavefunction_module
       deallocate(this%is_included)
     endif
   end subroutine clear_ab_find
+
+  subroutine dump(this, filename)
+    class(wavefunction_type), intent(inout) :: this
+    character(len=*), intent(in) :: filename
+    integer :: i, j
+    type(det_type), pointer :: tmp_det => null()
+    integer, allocatable :: orbitals(:)
+
+    open(unit = 24, file = filename)
+    write (24, '(I0, A, I0, A, I0)') this%n, ' ', this%n_up, ' ', this%n_dn
+    allocate(orbitals(max(this%n_up, this%n_dn)))
+    do i = 1, this%n
+      write (24, '(F0.10)') this%get_coef(i)
+      tmp_det => this%get_det(i)
+      call tmp_det%up%get_elec_orbitals(orbitals)
+      do j = 1, this%n_up
+        write (24, '(I0, A)', advance='no') orbitals(j), ' '
+      enddo
+      write (24, '()')
+      call tmp_det%dn%get_elec_orbitals(orbitals)
+      do j = 1, this%n_dn
+        write (24, '(I0, A)', advance='no') orbitals(j), ' '
+      enddo
+      write (24, '()')
+    enddo
+    close(24)
+    stop 'research'
+  end subroutine
 
 end module wavefunction_module
