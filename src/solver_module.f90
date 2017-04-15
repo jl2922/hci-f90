@@ -174,7 +174,7 @@ module solver_module
       energy_prev = energy_cur
       wf_prev = this%wf
     end do
-    call this%wf%dump("WAVE")
+    call this%wf%dump("WAVE", this%hf_energy, this%var_energy)
     write (6, '()')
 
     write (6, '(A)') '[PERTURBATION]'
@@ -533,7 +533,8 @@ module solver_module
     integer :: j_idx
     integer :: n_connections
     real(DOUBLE) :: E_a
-    real(DOUBLE) :: H_aj
+    ! real(DOUBLE) :: H_aj
+    real(DOUBLE) :: H_ai
     real(DOUBLE) :: eps_pt
     real(DOUBLE) :: pt_energy
     real(DOUBLE) :: var_energy
@@ -542,6 +543,7 @@ module solver_module
     type(det_type), pointer :: det_i, det_j, det_a
     type(wavefunction_type), pointer :: connected_dets
     type(lru_cache_type), pointer :: var_dets
+    type(lru_cache_type), pointer :: pt_dets
     
     integer, allocatable :: potential_connections(:)
     integer :: cnt
@@ -554,64 +556,79 @@ module solver_module
     call this%wf%find_potential_connections_setup()
     cnt = 0
     cnt_tot = 0
-    call build(var_dets, this%wf%n * 5)
-    do i = 1, this%wf%n
-      det_i => this%wf%get_det(i)
-      call var_dets%cache(det_i)
-    enddo
+    ! call build(var_dets, this%wf%n * 5)
+    ! call build(pt_dets, int(1.0e7))
+    ! do i = 1, this%wf%n
+    !   det_i => this%wf%get_det(i)
+    !   call var_dets%cache(det_i)
+    ! enddo
     do i = 1, this%wf%n
       det_i => this%wf%get_det(i)
       call this%find_connected_dets( &
           & det_i, eps_pt / abs(this%wf%get_coef(i)), connected_dets)
       do a = 1, connected_dets%n
         det_a => connected_dets%get_det(a)
-        if (det_a == det_i) cycle
-        if (var_dets%has(det_a)) cycle
-        if (this%wf%ab_find%lru%has(det_a)) then
-          cycle
-        endif
-        call this%wf%ab_find%lru%cache(det_a)
-        sum_a = 0.0_DOUBLE
-        is_added = .false.
-        cnt_tot = cnt_tot + 1
-        call this%wf%find_potential_connections( &
-            & det_a, potential_connections, n_connections)
-        do j_idx = 1, n_connections
-          j = potential_connections(j_idx)
-          det_j => this%wf%get_det(j)
-          if (det_a == det_j) then
-            cnt = cnt + 1
-            is_added = .true.
-            print *, cnt, cnt_tot, 'det_a = det_j'
-            exit
-          endif
-          H_aj = this%get_hamiltonian_elem(det_a, det_j)
-          if (abs(H_aj) < C%EPS) then
-            cycle
-          endif
-          term = H_aj * this%wf%get_coef(j)
-          if (abs(term) < eps_pt) then
-            cycle
-          else
-            if (j < i) then
-              cnt = cnt + 1
-              is_added = .true.
-              print *, cnt, cnt_tot, 'det_a = det_j'
-              exit
-            else
-              sum_a = sum_a + term
-            endif
-          endif
-        enddo
-        if (is_added) then
-          cycle
-        endif
-        E_a = this%get_hamiltonian_elem(det_a, det_a)
-        pt_energy = pt_energy + sum_a**2 / (var_energy - E_a)
-        
+        ! if (det_a == det_i) cycle
+        ! if (var_dets%has(det_a)) cycle
+        H_ai = this%get_hamiltonian_elem(det_a, det_i)
+        ! if (abs(H_ai) < C%EPS) then
+        !   cycle
+        ! endif
+        ! term = H_ai * this%wf%get_coef(i)
+        ! if (abs(term) < eps_pt) then
+        !   cycle
+        ! endif
+        ! if (pt_dets%has(det_a)) then
+        !   term = term + pt_dets%get(det_a)
+        !   call pt_dets%cache(det_a, term)
+        ! else
+        !   call pt_dets%cache(det_a, term)
+        ! endif
+        ! if (this%wf%ab_find%lru%has(det_a)) then
+        !   cycle
+        ! endif
+        ! call this%wf%ab_find%lru%cache(det_a)
+        ! sum_a = 0.0_DOUBLE
+        ! is_added = .false.
+        ! cnt_tot = cnt_tot + 1
+        ! call this%wf%find_potential_connections( &
+        !     & det_a, potential_connections, n_connections)
+        ! do j_idx = 1, n_connections
+        !   j = potential_connections(j_idx)
+        !   det_j => this%wf%get_det(j)
+        !   if (det_a == det_j) then
+        !     cnt = cnt + 1
+        !     is_added = .true.
+        !     print *, cnt, cnt_tot, 'det_a = det_j'
+        !     exit
+        !   endif
+        !   H_aj = this%get_hamiltonian_elem(det_a, det_j)
+        !   if (abs(H_aj) < C%EPS) then
+        !     cycle
+        !   endif
+        !   term = H_aj * this%wf%get_coef(j)
+        !   if (abs(term) < eps_pt) then
+        !     cycle
+        !   else
+        !     if (j < i) then
+        !       cnt = cnt + 1
+        !       is_added = .true.
+        !       print *, cnt, cnt_tot, 'det_a = det_j'
+        !       exit
+        !     else
+        !       sum_a = sum_a + term
+        !     endif
+        !   endif
+        ! enddo
+        ! if (is_added) then
+        !   cycle
+        ! endif
+        ! E_a = this%get_hamiltonian_elem(det_a, det_a)
+        ! pt_energy = pt_energy + sum_a**2 / (var_energy - E_a)
       enddo
       call delete(connected_dets)
     enddo
+
     this%pt_det_energy = pt_energy
   end subroutine pt_det
 

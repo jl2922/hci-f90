@@ -1,0 +1,71 @@
+System: heg                                                             
+
+[CONFIGURATIONS]
+n_up/n_dn: 7/7
+n_states: 1
+eps_var: .0010000000
+eps_pt: .0000100000
+tol: .0010000000
+dump_var_wf: T
+eps_pt_det: based on resources available.
+n_samples: based on resources available.
+heg%r_cutoff: 1.5000000000
+heg%r_s: .5000000000
+
+[SETUP]
+Cell length: 1.942564969
+K unit: 3.234478850
+K-point #1   0.0000000000   0.0000000000   0.0000000000
+K-point #2  -3.2344788502   0.0000000000   0.0000000000
+K-point #3   0.0000000000  -3.2344788502   0.0000000000
+K-point #4   0.0000000000   0.0000000000  -3.2344788502
+K-point #5   0.0000000000   0.0000000000   3.2344788502
+K-point #6   0.0000000000   3.2344788502   0.0000000000
+K-point #7   3.2344788502   0.0000000000   0.0000000000
+K-point #8  -3.2344788502  -3.2344788502   0.0000000000
+K-point #9  -3.2344788502   0.0000000000  -3.2344788502
+K-point #10  -3.2344788502   0.0000000000   3.2344788502
+K-point #11  -3.2344788502   3.2344788502   0.0000000000
+K-point #12   0.0000000000  -3.2344788502  -3.2344788502
+K-point #13   0.0000000000  -3.2344788502   3.2344788502
+K-point #14   0.0000000000   3.2344788502  -3.2344788502
+K-point #15   0.0000000000   3.2344788502   3.2344788502
+K-point #16   3.2344788502  -3.2344788502   0.0000000000
+K-point #17   3.2344788502   0.0000000000  -3.2344788502
+K-point #18   3.2344788502   0.0000000000   3.2344788502
+K-point #19   3.2344788502   3.2344788502   0.0000000000
+Number of spatial orbitals: 19
+Number of spin orbitals: 38
+HF energy: 58.5926749683
+Same spin hci queue generated.
+Opposite spin hci queue generated.
+
+[VARIATION]
+eps_var: .0010000000
+Variation Iteration #1
+Number of dets: 277
+Generating sparse hamiltonian...
+alpha and beta created.
+Performing davidson diagonalization...
+Iteration, Eigenvalues=  1    58.592674968
+Iteration, Eigenvalues=  2    58.283365868
+Iteration, Eigenvalues=  3    58.282597355
+Iteration, Eigenvalues=  4    58.282596705
+Iteration, Eigenvalues=  5    58.282596705
+davidson_sparse: n, Lowest eigenvalue =       277    58.2825967049
+Energy: 58.2825967049
+
+Variation Iteration #2
+Number of dets: 9475
+Generating sparse hamiltonian...
+alpha and beta created.
+Performing davidson diagonalization...
+Iteration, Eigenvalues=  1    58.282596705
+Iteration, Eigenvalues=  2    58.277016054
+Iteration, Eigenvalues=  3    58.276908475
+Iteration, Eigenvalues=  4    58.276906107
+Iteration, Eigenvalues=  5    58.276906085
+Iteration, Eigenvalues=  6    58.276906085
+davidson_sparse: n, Lowest eigenvalue =      9475    58.2769060846
+Energy: 58.2769060846
+

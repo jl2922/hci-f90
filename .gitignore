@@ -1,6 +1,5 @@
 hci
 profile
-*.txt
 *.log
 *.dSYM
 

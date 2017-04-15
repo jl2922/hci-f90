@@ -3,6 +3,7 @@ module lru_cache_module
   use det_module
   use doubly_linked_list_module
   use hash_table_module__det__det_list_node
+  use types_module
 
   implicit none
 
@@ -18,6 +19,7 @@ module lru_cache_module
     type(hash_table_type__det__det_list_node), pointer :: map => null()
     contains
       procedure, public :: has
+      procedure, public :: get
       procedure, public :: cache
   end type lru_cache_type
 
@@ -49,9 +51,20 @@ module lru_cache_module
     has = this%map%has(key)
   end function has
 
-  subroutine cache(this, key)
+  function get(this, key) result(val)
     class(lru_cache_type), intent(inout) :: this
     type(det_type), pointer, intent(inout) :: key
+    real(DOUBLE) :: val
+    type(doubly_linked_list_node_type), pointer :: node
+
+    node => this%map%get(key)
+    val = node%meta
+  end function
+
+  subroutine cache(this, key, val_opt)
+    class(lru_cache_type), intent(inout) :: this
+    type(det_type), pointer, intent(inout) :: key
+    real(DOUBLE), optional, intent(in) :: val_opt
     type(doubly_linked_list_node_type), pointer :: node
     type(det_type), pointer :: tmp_det
 
@@ -62,8 +75,11 @@ module lru_cache_module
 
     if (this%has(key)) then
       node => this%map%get(key)
-      call this%list%remove(node)
-      call this%list%push_front(node)
+      ! call this%list%remove(node)
+      ! call this%list%push_front(node)
+      if (present(val_opt)) then
+        node%meta = val_opt
+      endif
     else
       if (this%list%get_size() >= this%capacity) then
         node => this%list%back()
@@ -75,6 +91,9 @@ module lru_cache_module
       call build(tmp_det, key)
       call this%list%push_front(tmp_det)
       node => this%list%front()
+      if (present(val_opt)) then
+        node%meta = val_opt
+      endif
       call this%map%set(tmp_det, node)
     endif
   end subroutine cache

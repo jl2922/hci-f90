@@ -1,6 +1,7 @@
 module doubly_linked_list_module
 
   use det_module
+  use types_module
 
   implicit none
 
@@ -15,6 +16,7 @@ module doubly_linked_list_module
     type(doubly_linked_list_node_type), pointer :: prev => null()
     type(doubly_linked_list_node_type), pointer :: next => null()
     type(det_type), pointer :: item => null()
+    real(DOUBLE), public :: meta
   end type doubly_linked_list_node_type
 
   type doubly_linked_list_type

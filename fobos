@@ -1,5 +1,5 @@
 [default]
-cflags = -c -O3 -Wall -Wno-unused-dummy-argument -g
+cflags = -c -O3 -Wno-unused-dummy-argument -g
 lflags = -O3 -g
 ext_libs = lapack blas
 fc = gfortran

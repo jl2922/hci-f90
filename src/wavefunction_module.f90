@@ -573,18 +573,20 @@ module wavefunction_module
     endif
   end subroutine clear_ab_find
 
-  subroutine dump(this, filename)
+  subroutine dump(this, filename, hf_energy, var_energy)
     class(wavefunction_type), intent(inout) :: this
     character(len=*), intent(in) :: filename
+    real(DOUBLE), intent(in) :: hf_energy
+    real(DOUBLE), intent(in) :: var_energy
     integer :: i, j
     type(det_type), pointer :: tmp_det => null()
     integer, allocatable :: orbitals(:)
 
     open(unit = 24, file = filename)
-    write (24, '(I0, A, I0, A, I0)') this%n, ' ', this%n_up, ' ', this%n_dn
+    write (24, '(I0, A, F0.20, A, F0.20)') this%n, ' ', hf_energy, ' ', var_energy
     allocate(orbitals(max(this%n_up, this%n_dn)))
     do i = 1, this%n
-      write (24, '(F0.10)') this%get_coef(i)
+      write (24, '(F0.20)') this%get_coef(i)
       tmp_det => this%get_det(i)
       call tmp_det%up%get_elec_orbitals(orbitals)
       do j = 1, this%n_up

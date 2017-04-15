@@ -20,6 +20,7 @@ module det_module
     private
     type(spin_det_type), pointer, public :: up => null()
     type(spin_det_type), pointer, public :: dn => null()
+    real(DOUBLE), public :: meta = 0.0_DOUBLE
     contains
       procedure, public :: print
       procedure, public :: from_eor
